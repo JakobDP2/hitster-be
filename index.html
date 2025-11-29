@@ -15,7 +15,6 @@
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px; font-size: 1.2rem; width: 100%; margin-bottom: 10px; border-radius: 30px;}
         .card-custom { background-color: #282828; border: 1px solid #444; margin-top: 20px; padding: 30px 20px; border-radius: 15px;}
 
-        /* De Play Knop - Geoptimaliseerd voor touch */
         .big-play-btn {
             width: 120px; height: 120px;
             border-radius: 50%;
@@ -27,7 +26,7 @@
             margin: 20px auto;
             display: flex; align-items: center; justify-content: center;
             cursor: pointer;
-            -webkit-tap-highlight-color: transparent; /* Verwijdert grijze klik-box op iPhone */
+            -webkit-tap-highlight-color: transparent;
         }
         .big-play-btn:active { transform: scale(0.95); background-color: #1ed760; }
         .big-play-btn:disabled { background-color: #555; cursor: wait; box-shadow: none; }
@@ -49,7 +48,7 @@
 
     <div id="app-section" style="display:none;">
         <div id="reader"></div>
-        <div id="status" class="mt-3 text-muted">Even geduld, speler start op...</div>
+        <div id="status" class="mt-3 text-muted">Even geduld...</div>
     </div>
 
     <div id="controls" class="card-custom" style="display:none;">
@@ -65,9 +64,10 @@
     <script src="songs.js"></script> 
 
     <script>
-        // --- CONFIGURATIE ---
+        // ================= CONFIGURATIE =================
         const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW CLIENT ID
         const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW GITHUB URL
+        // ================================================
 
         let accessToken = null;
         let deviceId = null;
@@ -77,7 +77,6 @@
 
         // --- AUTH ---
         async function pkceLogin() {
-            // (Zelfde code als voorheen...)
             const generateRandomString = (length) => {
                 const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
                 let text = '';
@@ -127,7 +126,7 @@
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
 
-            // CRUCIAAL: Unlock Audio bij eerste interactie
+            // Unlock audio fix voor iOS
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
 
@@ -135,16 +134,19 @@
                 const player = new Spotify.Player({
                     name: 'Hitster BE Mobile',
                     getOAuthToken: cb => { cb(accessToken); },
-                    volume: 1.0 // Volume op max
+                    volume: 1.0
                 });
 
                 player.addListener('ready', ({ device_id }) => {
                     console.log('Ready with Device ID', device_id);
                     deviceId = device_id;
-                    transferPlayback(device_id); // Maak actief
+                    transferPlayback(device_id); 
+                    
                     document.getElementById('loading-section').style.display = 'none';
                     document.getElementById('app-section').style.display = 'block';
                     document.getElementById('status').innerText = "🟢 Klaar! Scan nu.";
+                    
+                    // Start de scanner hier voor de eerste keer
                     initScanner();
                 });
 
@@ -155,15 +157,10 @@
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
 
-        // TRUCJE: Speel stilte af om iOS audio te activeren
         function unlockAudio() {
-            // We maken een dummy audio element aan
             const audio = new Audio();
-            // Korte stilte
             audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; 
-            audio.play().catch(e => console.log("Audio unlock failed (mogelijk al unlocked)", e));
-            
-            // Probeer ook de Spotify Player te 'activeren'
+            audio.play().catch(e => {});
             if(spotifyPlayer) spotifyPlayer.activateElement(); 
         }
 
@@ -175,42 +172,50 @@
             });
         }
 
+        // --- SCANNER LOGICA (GEFIXT) ---
         function initScanner() {
+            // Als hij al bestaat, doen we niks (voorkomt dubbele scanners)
             if(html5QrcodeScanner) return;
+
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(onScanSuccess);
         }
 
         function onScanSuccess(decodedText) {
-            html5QrcodeScanner.clear();
             const id = parseInt(decodedText);
             currentSong = songs.find(s => s.id === id);
             
             if (currentSong) {
-                document.getElementById('app-section').style.display = 'none';
-                document.getElementById('controls').style.display = 'block';
-                document.getElementById('song-id-display').innerText = id;
-                document.getElementById('player-status').innerText = "Klik voor muziek";
-                
-                // Schakel knop in
-                const btn = document.getElementById('sdkPlayBtn');
-                btn.disabled = false;
+                // STOP DE SCANNER GOED
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.clear().then(() => {
+                        // CRUCIAAL: Zet de variabele op null zodat we weten dat hij weg is
+                        html5QrcodeScanner = null;
+                        
+                        // Nu pas de UI tonen
+                        document.getElementById('app-section').style.display = 'none';
+                        document.getElementById('controls').style.display = 'block';
+                        document.getElementById('song-id-display').innerText = id;
+                        document.getElementById('player-status').innerText = "Klik voor muziek";
+                        
+                        const btn = document.getElementById('sdkPlayBtn');
+                        btn.disabled = false;
+                    }).catch(error => {
+                        console.error("Failed to clear scanner", error);
+                    });
+                }
             } else {
                 alert("QR niet gevonden!");
-                initScanner();
             }
         }
 
         async function playCurrentSong() {
-            // Nog een keer audio unlocken voor de zekerheid
             unlockAudio();
-            
             const btn = document.getElementById('sdkPlayBtn');
             const status = document.getElementById('player-status');
             btn.disabled = true;
 
             if(!deviceId) { status.innerText = "⚠️ Geen speler. Refresh."; return; }
-
             status.innerText = "Laden...";
             
             try {
@@ -221,25 +226,23 @@
                 });
                 status.innerText = "🎶 Muziek speelt!";
                 status.style.color = "#1db954";
-                
-                // EXTRA: Zet volume op max via API
-                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-
-            } catch (e) {
-                console.error(e);
-                status.innerText = "Foutje.";
-            }
+                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
+            } catch (e) { console.error(e); status.innerText = "Foutje."; }
             setTimeout(() => btn.disabled = false, 2000);
         }
 
         function resetScanner() {
+            // Pauzeer muziek
             if(spotifyPlayer) spotifyPlayer.pause();
+            
+            // Reset UI
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             document.getElementById('status').innerText = "Scan een kaart...";
+            
+            // HERSTART SCANNER
+            // Omdat we hem op null hebben gezet in onScanSuccess, 
+            // zal initScanner() hem nu netjes opnieuw aanmaken.
             initScanner();
         }
 
