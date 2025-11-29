@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hitster BE (PKCE)</title>
+    <title>Hitster BE</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    
     <style>
         body { background-color: #121212; color: white; font-family: sans-serif; }
         #reader { width: 100%; max-width: 400px; margin: 0 auto; border: 2px solid #1db954; border-radius: 10px; overflow: hidden; }
+        
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 12px; font-size: 1.1rem; width: 100%; margin-bottom: 10px;}
         .card-custom { background-color: #282828; border: 1px solid #444; margin-top: 20px; padding: 30px 20px; border-radius: 15px;}
+
         .big-play-btn {
             width: 100px; height: 100px; border-radius: 50%; background-color: #1db954; border: none; color: white; font-size: 2.5rem;
             box-shadow: 0 0 30px rgba(29, 185, 84, 0.6); margin: 20px auto; display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -24,7 +26,7 @@
     <h1 class="mb-4">🎵 Hitster BE</h1>
 
     <div id="login-section">
-        <p>Log in met Spotify (PKCE Mode)</p>
+        <p>Log in met Spotify (PKCE)</p>
         <button onclick="pkceLogin()" class="btn btn-spotify">Log in</button>
     </div>
 
@@ -44,11 +46,25 @@
     <script src="songs.js"></script> 
 
     <script>
-        // --- CONFIGURATIE ---
-        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW ID
-        // const redirectUri = "http://127.0.0.1:5500/index.html"; // EXACT ZO IN DASHBOARD ZETTEN
-        const redirectURI = "https://jakobdp2.github.io/hitster-be/";
-        // --- PKCE HELPER FUNCTIES (Dit is de "nieuwe" manier) ---
+        // ==========================================
+        // 1. CONFIGURATIE (BOVENAAN!)
+        // ==========================================
+        
+        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // <--- JOUW ID
+        
+        // Zorg dat deze EXACT matcht met je Dashboard.
+        // Als je op GitHub zit:
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; 
+        
+        // Als je lokaal test, haal de // hieronder weg en zet ze voor de regel hierboven:
+        // const redirectUri = "http://127.0.0.1:5500/index.html";
+
+        console.log("Config geladen. Redirect URI:", redirectUri);
+
+        // ==========================================
+        // 2. PKCE LOGIN LOGICA
+        // ==========================================
+
         function generateRandomString(length) {
             let text = '';
             const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -69,19 +85,18 @@
             return base64encode(digest);
         }
 
-        // --- 1. START LOGIN ---
         async function pkceLogin() {
+            console.log("Start login...");
             const codeVerifier = generateRandomString(128);
             const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-            // Sla verifier op voor stap 2
             localStorage.setItem('pkce_code_verifier', codeVerifier);
 
             const scope = 'streaming user-read-email user-read-private user-modify-playback-state';
             const authUrl = new URL("https://accounts.spotify.com/authorize");
 
             const params = {
-                response_type: 'code', // LET OP: 'code', geen 'token'!
+                response_type: 'code',
                 client_id: clientId,
                 scope: scope,
                 code_challenge_method: 'S256',
@@ -93,15 +108,12 @@
             window.location.href = authUrl.toString();
         }
 
-        // --- 2. VERWERK LOGIN (Na redirect) ---
         async function handleRedirect() {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
             if (code) {
-                // We hebben een code! Nu omwisselen voor een token
                 const codeVerifier = localStorage.getItem('pkce_code_verifier');
-                
                 const body = new URLSearchParams({
                     grant_type: 'authorization_code',
                     code: code,
@@ -120,21 +132,23 @@
                     
                     if(data.access_token) {
                         localStorage.setItem('access_token', data.access_token);
-                        // Maak URL schoon
                         window.history.replaceState({}, document.title, window.location.pathname);
                         startApp(data.access_token);
                     } else {
-                        alert("Fout bij token ophalen: " + JSON.stringify(data));
+                        console.error("Token error:", data);
+                        alert("Fout bij inloggen: " + JSON.stringify(data));
                     }
                 } catch(e) { console.error(e); }
             } else {
-                // Check of we al een token hadden
                 const token = localStorage.getItem('access_token');
                 if(token) startApp(token);
             }
         }
 
-        // --- 3. START APP ---
+        // ==========================================
+        // 3. APP LOGICA
+        // ==========================================
+        
         let deviceId = null;
         let html5QrcodeScanner = null;
         let currentSong = null;
@@ -142,36 +156,44 @@
         function startApp(token) {
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
-
-            // SDK Starten
-            window.onSpotifyWebPlaybackSDKReady = () => {
-                const player = new Spotify.Player({
-                    name: 'Hitster BE Player',
-                    getOAuthToken: cb => { cb(token); },
-                    volume: 0.8
-                });
-
-                player.addListener('ready', ({ device_id }) => {
-                    console.log('Ready with Device ID', device_id);
-                    deviceId = device_id;
-                    document.getElementById('status').innerText = "Scan een kaart...";
-                    initScanner();
-                });
-
-                player.addListener('authentication_error', () => {
-                    console.log("Token verlopen");
-                    localStorage.removeItem('access_token');
-                    window.location.reload();
-                });
-
-                player.connect();
-            };
             
-            // Trigger SDK als hij al geladen was
-            if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
+            // Nu wachten we op de SDK die onderaan de pagina wordt geladen
         }
 
+        // Deze functie wordt aangeroepen door het script onderaan de pagina
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            console.log("SDK Ready, making player...");
+            const player = new Spotify.Player({
+                name: 'Hitster BE Player',
+                getOAuthToken: cb => { cb(token); },
+                volume: 0.8
+            });
+
+            player.addListener('ready', ({ device_id }) => {
+                console.log('Ready with Device ID', device_id);
+                deviceId = device_id;
+                document.getElementById('status').innerText = "Scan een kaart...";
+                initScanner();
+            });
+
+            player.addListener('not_ready', ({ device_id }) => {
+                console.log('Device ID has gone offline', device_id);
+            });
+
+            player.addListener('authentication_error', ({ message }) => {
+                console.error("Auth error:", message);
+                localStorage.removeItem('access_token');
+                window.location.reload();
+            });
+
+            player.connect();
+        };
+
         function initScanner() {
+            if(html5QrcodeScanner) return; // Al gestart
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(onScanSuccess);
         }
@@ -213,9 +235,11 @@
             initScanner();
         }
 
-        // Start alles
+        // Start flow
         handleRedirect();
 
     </script>
+
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
 </body>
 </html>
