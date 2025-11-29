@@ -62,7 +62,17 @@
         // Als je lokaal test met Live Server, gebruik: http://127.0.0.1:5500/index.html
         // Als je live gaat, gebruik: https://jouwnaam.github.io/hitster-be/
         // TIP: Gebruik window.location.href om het dynamisch te maken (zorg dat de / klopt in dashboard)
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; 
+        // const redirectUri = "http://127.0.0.1:5500/index.html"; 
+        // --- SLIMME REDIRECT URI ---
+        // Dit pakt automatisch de huidige link uit de browserbalk.
+        // Werkt dus zowel lokaal (127.0.0.1) als op GitHub!
+        // Zorg wel dat BEIDE links exact zo in je Spotify Dashboard staan.
+        let redirectUri = window.location.href;
+        
+        // Kleine schoonmaak: haal eventuele '?code=...' of '#...' weg die Spotify toevoegt
+        redirectUri = redirectUri.split('?')[0].split('#')[0];
+        
+        console.log("Huidige Redirect URI:", redirectUri); // Zie je in F12 console ter controle
         
         // --- 2. AUTHENTICATIE LOGICA ---
         let accessToken = null;
