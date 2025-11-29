@@ -27,12 +27,13 @@
             display: flex; align-items: center; justify-content: center;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
+            transition: all 0.2s;
         }
-        .big-play-btn:active { transform: scale(0.95); background-color: #1ed760; }
-        /* Als hij bezig is, maken we hem oranje */
-        .big-play-btn.loading { background-color: #e67e22; animation: pulse 1s infinite; }
+        .big-play-btn:active { transform: scale(0.95); }
+        .big-play-btn:disabled { background-color: #555; cursor: wait; box-shadow: none; }
         
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        /* Pauze stijl */
+        .big-play-btn.paused { background-color: #1ed760; box-shadow: 0 0 10px rgba(255,255,255,0.2); }
     </style>
 </head>
 <body class="text-center p-3">
@@ -58,8 +59,8 @@
         <h3 class="text-success">Gevonden!</h3>
         <p class="text-muted small">ID: <span id="song-id-display"></span></p>
         
-        <button id="sdkPlayBtn" onclick="manualRetry()" class="big-play-btn">▶️</button>
-        <p class="text-muted small" id="player-status">Starten...</p>
+        <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn" disabled>▶️</button>
+        <p class="text-muted small" id="player-status">Wacht op verbinding...</p>
 
         <button onclick="resetScanner()" class="btn btn-secondary w-100 mt-4">Volgende</button>
     </div>
@@ -68,8 +69,8 @@
 
     <script>
         // ================= CONFIGURATIE =================
-        const clientId = "JOUW_CLIENT_ID_HIER"; // <--- VUL IN
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // <--- VUL IN
+        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW CLIENT ID
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW GITHUB URL
         // ================================================
 
         let accessToken = null;
@@ -77,6 +78,10 @@
         let spotifyPlayer = null;
         let html5QrcodeScanner = null;
         let currentSong = null;
+        
+        // Status Variabelen
+        let isTrackLoaded = false; // Is het huidige liedje al naar Spotify gestuurd?
+        let isPlaying = false;     // Is hij nu aan het spelen?
 
         // --- AUTH ---
         async function pkceLogin() {
@@ -129,7 +134,6 @@
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
 
-            // iOS Audio Unlock (First Interaction)
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
 
@@ -149,6 +153,28 @@
                     document.getElementById('app-section').style.display = 'block';
                     document.getElementById('status').innerText = "🟢 Klaar! Scan nu.";
                     initScanner();
+                });
+
+                // LUISTERVINK: Houdt de status van de speler in de gaten
+                player.addListener('player_state_changed', state => {
+                    if (!state) return;
+                    
+                    // Update onze interne status
+                    isPlaying = !state.paused;
+                    
+                    // Update de knop
+                    const btn = document.getElementById('sdkPlayBtn');
+                    const statusText = document.getElementById('player-status');
+                    
+                    if (isPlaying) {
+                        btn.innerText = "⏸️"; // Pauze icoon
+                        statusText.innerText = "Muziek speelt";
+                        statusText.style.color = "#1db954";
+                    } else {
+                        btn.innerText = "▶️"; // Play icoon
+                        statusText.innerText = "Gepauzeerd";
+                        statusText.style.color = "white";
+                    }
                 });
 
                 player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
@@ -173,7 +199,6 @@
             });
         }
 
-        // --- SCANNER LOGICA ---
         function initScanner() {
             if(html5QrcodeScanner) return;
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
@@ -185,16 +210,23 @@
             currentSong = songs.find(s => s.id === id);
             
             if (currentSong) {
-                // STOP Scanner & Update UI
                 if (html5QrcodeScanner) {
                     html5QrcodeScanner.clear().then(() => {
                         html5QrcodeScanner = null;
+                        
+                        // Nieuwe scan = nieuwe track, dus nog niet geladen
+                        isTrackLoaded = false;
                         
                         document.getElementById('app-section').style.display = 'none';
                         document.getElementById('controls').style.display = 'block';
                         document.getElementById('song-id-display').innerText = id;
                         
-                        // 🚀 AUTO-START POGING!
+                        // Activeer knop
+                        const btn = document.getElementById('sdkPlayBtn');
+                        btn.disabled = false;
+                        btn.classList.add('loading'); // Even zandlopertje
+                        
+                        // Probeer auto-start
                         playCurrentSong();
                         
                     }).catch(err => console.log(err));
@@ -204,65 +236,64 @@
             }
         }
 
-        // --- AFSPELEN ---
+        // --- DE SLIMME KNOP FUNCTIE ---
+        async function togglePlayback() {
+            // Als we nog geen track hebben geladen -> Laad hem (Start)
+            if (!isTrackLoaded) {
+                playCurrentSong();
+            } else {
+                // Als track al geladen is -> Toggle Pauze/Play via SDK (Snel!)
+                if (spotifyPlayer) {
+                    spotifyPlayer.togglePlay();
+                }
+            }
+        }
+
+        // --- TRACK LADEN (API) ---
         async function playCurrentSong() {
             const btn = document.getElementById('sdkPlayBtn');
             const status = document.getElementById('player-status');
             
-            // Visuele feedback dat we proberen te starten
-            btn.classList.add('loading'); 
-            btn.innerText = "⏳";
-            status.innerText = "Auto-starten...";
-
-            if(!deviceId) { 
-                status.innerText = "⚠️ Geen verbinding. Tik op de knop."; 
-                btn.classList.remove('loading');
-                btn.innerText = "▶️";
-                return; 
-            }
+            if(!deviceId) { status.innerText = "⚠️ Geen speler. Refresh."; return; }
+            status.innerText = "Laden...";
             
             try {
-                // Probeer af te spelen via API
+                // Laad nieuw nummer in
                 await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                     method: 'PUT',
                     body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
                 });
                 
-                status.innerText = "🎶 Muziek speelt!";
-                status.style.color = "#1db954";
-                btn.classList.remove('loading');
-                btn.innerText = "⏸️"; // Verander in pauze icoon ofzo (visueel)
+                // Markeer als geladen
+                isTrackLoaded = true;
                 
+                // Volume boost
+                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
+                
+                // Visuele feedback
+                btn.classList.remove('loading');
+
             } catch (e) {
                 console.error(e);
-                status.innerText = "Auto-start mislukt. Tik om te spelen.";
+                status.innerText = "Foutje.";
                 btn.classList.remove('loading');
-                btn.innerText = "▶️";
             }
-        }
-        
-        // Back-up functie als auto-start faalt en gebruiker klikt
-        function manualRetry() {
-            unlockAudio(); // Nog eens proberen te unlocken
-            playCurrentSong();
         }
 
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
             
-            // Reset UI
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             document.getElementById('status').innerText = "Scan een kaart...";
             document.getElementById('player-status').innerText = "Wacht op scan...";
-            document.getElementById('player-status').style.color = "#6c757d";
             
-            // Reset knop
+            // Reset knop status
             const btn = document.getElementById('sdkPlayBtn');
-            btn.classList.remove('loading');
             btn.innerText = "▶️";
-
+            
+            isTrackLoaded = false;
             initScanner();
         }
 
