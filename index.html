@@ -29,7 +29,10 @@
             -webkit-tap-highlight-color: transparent;
         }
         .big-play-btn:active { transform: scale(0.95); background-color: #1ed760; }
-        .big-play-btn:disabled { background-color: #555; cursor: wait; box-shadow: none; }
+        /* Als hij bezig is, maken we hem oranje */
+        .big-play-btn.loading { background-color: #e67e22; animation: pulse 1s infinite; }
+        
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body class="text-center p-3">
@@ -43,7 +46,7 @@
 
     <div id="loading-section" style="display:none;">
         <div class="spinner-border text-success mb-3" role="status"></div>
-        <p id="loading-text">Speler verbinden...</p>
+        <p>Speler verbinden...</p>
     </div>
 
     <div id="app-section" style="display:none;">
@@ -55,8 +58,8 @@
         <h3 class="text-success">Gevonden!</h3>
         <p class="text-muted small">ID: <span id="song-id-display"></span></p>
         
-        <button id="sdkPlayBtn" onclick="playCurrentSong()" class="big-play-btn" disabled>▶️</button>
-        <p class="text-muted small" id="player-status">Wacht op verbinding...</p>
+        <button id="sdkPlayBtn" onclick="manualRetry()" class="big-play-btn">▶️</button>
+        <p class="text-muted small" id="player-status">Starten...</p>
 
         <button onclick="resetScanner()" class="btn btn-secondary w-100 mt-4">Volgende</button>
     </div>
@@ -65,8 +68,8 @@
 
     <script>
         // ================= CONFIGURATIE =================
-        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW CLIENT ID
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW GITHUB URL
+        const clientId = "JOUW_CLIENT_ID_HIER"; // <--- VUL IN
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // <--- VUL IN
         // ================================================
 
         let accessToken = null;
@@ -126,7 +129,7 @@
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
 
-            // Unlock audio fix voor iOS
+            // iOS Audio Unlock (First Interaction)
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
 
@@ -145,8 +148,6 @@
                     document.getElementById('loading-section').style.display = 'none';
                     document.getElementById('app-section').style.display = 'block';
                     document.getElementById('status').innerText = "🟢 Klaar! Scan nu.";
-                    
-                    // Start de scanner hier voor de eerste keer
                     initScanner();
                 });
 
@@ -172,11 +173,9 @@
             });
         }
 
-        // --- SCANNER LOGICA (GEFIXT) ---
+        // --- SCANNER LOGICA ---
         function initScanner() {
-            // Als hij al bestaat, doen we niks (voorkomt dubbele scanners)
             if(html5QrcodeScanner) return;
-
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(onScanSuccess);
         }
@@ -186,63 +185,84 @@
             currentSong = songs.find(s => s.id === id);
             
             if (currentSong) {
-                // STOP DE SCANNER GOED
+                // STOP Scanner & Update UI
                 if (html5QrcodeScanner) {
                     html5QrcodeScanner.clear().then(() => {
-                        // CRUCIAAL: Zet de variabele op null zodat we weten dat hij weg is
                         html5QrcodeScanner = null;
                         
-                        // Nu pas de UI tonen
                         document.getElementById('app-section').style.display = 'none';
                         document.getElementById('controls').style.display = 'block';
                         document.getElementById('song-id-display').innerText = id;
-                        document.getElementById('player-status').innerText = "Klik voor muziek";
                         
-                        const btn = document.getElementById('sdkPlayBtn');
-                        btn.disabled = false;
-                    }).catch(error => {
-                        console.error("Failed to clear scanner", error);
-                    });
+                        // 🚀 AUTO-START POGING!
+                        playCurrentSong();
+                        
+                    }).catch(err => console.log(err));
                 }
             } else {
                 alert("QR niet gevonden!");
             }
         }
 
+        // --- AFSPELEN ---
         async function playCurrentSong() {
-            unlockAudio();
             const btn = document.getElementById('sdkPlayBtn');
             const status = document.getElementById('player-status');
-            btn.disabled = true;
+            
+            // Visuele feedback dat we proberen te starten
+            btn.classList.add('loading'); 
+            btn.innerText = "⏳";
+            status.innerText = "Auto-starten...";
 
-            if(!deviceId) { status.innerText = "⚠️ Geen speler. Refresh."; return; }
-            status.innerText = "Laden...";
+            if(!deviceId) { 
+                status.innerText = "⚠️ Geen verbinding. Tik op de knop."; 
+                btn.classList.remove('loading');
+                btn.innerText = "▶️";
+                return; 
+            }
             
             try {
+                // Probeer af te spelen via API
                 await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                     method: 'PUT',
                     body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
                 });
+                
                 status.innerText = "🎶 Muziek speelt!";
                 status.style.color = "#1db954";
-                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
-            } catch (e) { console.error(e); status.innerText = "Foutje."; }
-            setTimeout(() => btn.disabled = false, 2000);
+                btn.classList.remove('loading');
+                btn.innerText = "⏸️"; // Verander in pauze icoon ofzo (visueel)
+                
+            } catch (e) {
+                console.error(e);
+                status.innerText = "Auto-start mislukt. Tik om te spelen.";
+                btn.classList.remove('loading');
+                btn.innerText = "▶️";
+            }
+        }
+        
+        // Back-up functie als auto-start faalt en gebruiker klikt
+        function manualRetry() {
+            unlockAudio(); // Nog eens proberen te unlocken
+            playCurrentSong();
         }
 
         function resetScanner() {
-            // Pauzeer muziek
             if(spotifyPlayer) spotifyPlayer.pause();
             
             // Reset UI
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             document.getElementById('status').innerText = "Scan een kaart...";
+            document.getElementById('player-status').innerText = "Wacht op scan...";
+            document.getElementById('player-status').style.color = "#6c757d";
             
-            // HERSTART SCANNER
-            // Omdat we hem op null hebben gezet in onScanSuccess, 
-            // zal initScanner() hem nu netjes opnieuw aanmaken.
+            // Reset knop
+            const btn = document.getElementById('sdkPlayBtn');
+            btn.classList.remove('loading');
+            btn.innerText = "▶️";
+
             initScanner();
         }
 
