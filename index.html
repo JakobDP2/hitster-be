@@ -2,117 +2,116 @@
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hitster BE</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
-        body { background-color: #121212; color: white; font-family: sans-serif; }
+        body { background-color: #121212; color: white; font-family: sans-serif; touch-action: manipulation; }
         #reader { width: 100%; max-width: 400px; margin: 0 auto; border: 2px solid #1db954; border-radius: 10px; overflow: hidden; }
         
-        .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 12px; font-size: 1.1rem; width: 100%; margin-bottom: 10px;}
+        .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px; font-size: 1.2rem; width: 100%; margin-bottom: 10px; border-radius: 30px;}
         .card-custom { background-color: #282828; border: 1px solid #444; margin-top: 20px; padding: 30px 20px; border-radius: 15px;}
 
+        /* De Play Knop - Geoptimaliseerd voor touch */
         .big-play-btn {
-            width: 100px; height: 100px; border-radius: 50%; background-color: #1db954; border: none; color: white; font-size: 2.5rem;
-            box-shadow: 0 0 30px rgba(29, 185, 84, 0.6); margin: 20px auto; display: flex; align-items: center; justify-content: center; cursor: pointer;
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            background-color: #1db954;
+            border: none;
+            color: white;
+            font-size: 3rem;
+            box-shadow: 0 0 30px rgba(29, 185, 84, 0.6);
+            margin: 20px auto;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent; /* Verwijdert grijze klik-box op iPhone */
         }
-        .big-play-btn:disabled { background-color: #555; cursor: wait; }
+        .big-play-btn:active { transform: scale(0.95); background-color: #1ed760; }
+        .big-play-btn:disabled { background-color: #555; cursor: wait; box-shadow: none; }
     </style>
 </head>
 <body class="text-center p-3">
 
     <h1 class="mb-4">🎵 Hitster BE</h1>
 
-    <div id="login-section">
-        <p>Log in met Spotify (PKCE)</p>
+    <div id="login-section" style="display:none;">
+        <p>Log in met Spotify Premium</p>
         <button onclick="pkceLogin()" class="btn btn-spotify">Log in</button>
     </div>
 
-    <div id="app-content" style="display:none;">
+    <div id="loading-section" style="display:none;">
+        <div class="spinner-border text-success mb-3" role="status"></div>
+        <p id="loading-text">Speler verbinden...</p>
+    </div>
+
+    <div id="app-section" style="display:none;">
         <div id="reader"></div>
-        <div id="status" class="mt-3 text-muted">Speler verbinden...</div>
+        <div id="status" class="mt-3 text-muted">Even geduld, speler start op...</div>
+    </div>
+
+    <div id="controls" class="card-custom" style="display:none;">
+        <h3 class="text-success">Gevonden!</h3>
+        <p class="text-muted small">ID: <span id="song-id-display"></span></p>
         
-        <div id="controls" class="card-custom" style="display:none;">
-            <h3 class="text-success">Gevonden!</h3>
-            <p class="text-muted small">ID: <span id="song-id-display"></span></p>
-            <button id="sdkPlayBtn" onclick="playCurrentSong()" class="big-play-btn">▶️</button>
-            <p class="text-muted small" id="player-status">Klik om te starten</p>
-            <button onclick="resetScanner()" class="btn btn-secondary w-100 mt-4">Volgende</button>
-        </div>
+        <button id="sdkPlayBtn" onclick="playCurrentSong()" class="big-play-btn" disabled>▶️</button>
+        <p class="text-muted small" id="player-status">Wacht op verbinding...</p>
+
+        <button onclick="resetScanner()" class="btn btn-secondary w-100 mt-4">Volgende</button>
     </div>
 
     <script src="songs.js"></script> 
 
     <script>
-        // ==========================================
-        // 1. CONFIGURATIE (BOVENAAN!)
-        // ==========================================
-        
-        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // <--- JOUW ID
-        
-        // Zorg dat deze EXACT matcht met je Dashboard.
-        // Als je op GitHub zit:
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; 
-        
-        // Als je lokaal test, haal de // hieronder weg en zet ze voor de regel hierboven:
-        // const redirectUri = "http://127.0.0.1:5500/index.html";
+        // ================= CONFIGURATIE =================
+        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW CLIENT ID
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW GITHUB URL
+        // ================================================
 
-        console.log("Config geladen. Redirect URI:", redirectUri);
+        let accessToken = null;
+        let deviceId = null;
+        let spotifyPlayer = null;
+        let html5QrcodeScanner = null;
+        let currentSong = null;
 
-        // ==========================================
-        // 2. PKCE LOGIN LOGICA
-        // ==========================================
-
-        function generateRandomString(length) {
-            let text = '';
-            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            for (let i = 0; i < length; i++) {
-                text += possible.charAt(Math.floor(Math.random() * possible.length));
-            }
-            return text;
-        }
-
-        async function generateCodeChallenge(codeVerifier) {
-            function base64encode(string) {
-                return btoa(String.fromCharCode.apply(null, new Uint8Array(string)))
-                    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-            }
-            const encoder = new TextEncoder();
-            const data = encoder.encode(codeVerifier);
-            const digest = await window.crypto.subtle.digest('SHA-256', data);
-            return base64encode(digest);
-        }
-
+        // --- AUTH & LOGIN ---
         async function pkceLogin() {
-            console.log("Start login...");
+            const generateRandomString = (length) => {
+                const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                let text = '';
+                for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); }
+                return text;
+            };
+            const generateCodeChallenge = async (codeVerifier) => {
+                const data = new TextEncoder().encode(codeVerifier);
+                const digest = await window.crypto.subtle.digest('SHA-256', data);
+                return btoa(String.fromCharCode.apply(null, new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            };
+
             const codeVerifier = generateRandomString(128);
-            const codeChallenge = await generateCodeChallenge(codeVerifier);
-
             localStorage.setItem('pkce_code_verifier', codeVerifier);
-
+            const codeChallenge = await generateCodeChallenge(codeVerifier);
             const scope = 'streaming user-read-email user-read-private user-modify-playback-state';
-            const authUrl = new URL("https://accounts.spotify.com/authorize");
-
-            const params = {
+            
+            const args = new URLSearchParams({
                 response_type: 'code',
                 client_id: clientId,
                 scope: scope,
+                redirect_uri: redirectUri,
                 code_challenge_method: 'S256',
-                code_challenge: codeChallenge,
-                redirect_uri: redirectUri
-            };
-
-            authUrl.search = new URLSearchParams(params).toString();
-            window.location.href = authUrl.toString();
+                code_challenge: codeChallenge
+            });
+            window.location = 'https://accounts.spotify.com/authorize?' + args;
         }
 
-        async function handleRedirect() {
+        async function handleToken() {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
             if (code) {
+                // We komen terug van login -> wissel code in voor token
                 const codeVerifier = localStorage.getItem('pkce_code_verifier');
                 const body = new URLSearchParams({
                     grant_type: 'authorization_code',
@@ -129,71 +128,79 @@
                         body: body
                     });
                     const data = await response.json();
-                    
                     if(data.access_token) {
                         localStorage.setItem('access_token', data.access_token);
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                        startApp(data.access_token);
-                    } else {
-                        console.error("Token error:", data);
-                        alert("Fout bij inloggen: " + JSON.stringify(data));
+                        // CRUCIAAL: Refresh de pagina om de URL schoon te maken en te starten
+                        window.location.href = redirectUri; 
                     }
                 } catch(e) { console.error(e); }
             } else {
-                const token = localStorage.getItem('access_token');
-                if(token) startApp(token);
+                // Check of we al ingelogd zijn
+                accessToken = localStorage.getItem('access_token');
+                if(accessToken) {
+                    startApp();
+                } else {
+                    document.getElementById('login-section').style.display = 'block';
+                }
             }
         }
 
-        // ==========================================
-        // 3. APP LOGICA
-        // ==========================================
-        
-        let deviceId = null;
-        let html5QrcodeScanner = null;
-        let currentSong = null;
-
-        function startApp(token) {
+        // --- APP START ---
+        function startApp() {
             document.getElementById('login-section').style.display = 'none';
-            document.getElementById('app-content').style.display = 'block';
+            document.getElementById('loading-section').style.display = 'block';
+
+            // SDK Setup
+            window.onSpotifyWebPlaybackSDKReady = () => {
+                const player = new Spotify.Player({
+                    name: 'Hitster BE Mobile',
+                    getOAuthToken: cb => { cb(accessToken); },
+                    volume: 0.8
+                });
+
+                player.addListener('ready', ({ device_id }) => {
+                    console.log('Ready with Device ID', device_id);
+                    deviceId = device_id;
+                    
+                    // CRUCIAAL VOOR MOBIEL: Maak dit apparaat actief!
+                    transferPlayback(device_id);
+
+                    document.getElementById('loading-section').style.display = 'none';
+                    document.getElementById('app-section').style.display = 'block';
+                    document.getElementById('status').innerText = "🟢 Speler verbonden! Scan nu.";
+                    
+                    // Activeer knop alvast
+                    const btn = document.getElementById('sdkPlayBtn');
+                    btn.disabled = false;
+                    
+                    initScanner();
+                });
+
+                player.addListener('authentication_error', () => {
+                    localStorage.removeItem('access_token');
+                    window.location.reload();
+                });
+
+                player.connect();
+                spotifyPlayer = player;
+            };
             
-            // Nu wachten we op de SDK die onderaan de pagina wordt geladen
+            // Fallback als SDK script al geladen was
+            if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
 
-        // Deze functie wordt aangeroepen door het script onderaan de pagina
-        window.onSpotifyWebPlaybackSDKReady = () => {
-            const token = localStorage.getItem('access_token');
-            if (!token) return;
-
-            console.log("SDK Ready, making player...");
-            const player = new Spotify.Player({
-                name: 'Hitster BE Player',
-                getOAuthToken: cb => { cb(token); },
-                volume: 0.8
+        // --- HET "WAKE UP" COMMANDO ---
+        async function transferPlayback(id) {
+            await fetch('https://api.spotify.com/v1/me/player', {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ "device_ids": [id], "play": false }) // Verbinden, maar nog niet spelen
             });
+        }
 
-            player.addListener('ready', ({ device_id }) => {
-                console.log('Ready with Device ID', device_id);
-                deviceId = device_id;
-                document.getElementById('status').innerText = "Scan een kaart...";
-                initScanner();
-            });
-
-            player.addListener('not_ready', ({ device_id }) => {
-                console.log('Device ID has gone offline', device_id);
-            });
-
-            player.addListener('authentication_error', ({ message }) => {
-                console.error("Auth error:", message);
-                localStorage.removeItem('access_token');
-                window.location.reload();
-            });
-
-            player.connect();
-        };
-
+        // --- SCANNER ---
         function initScanner() {
-            if(html5QrcodeScanner) return; // Al gestart
+            if(html5QrcodeScanner) return;
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(onScanSuccess);
         }
@@ -204,42 +211,56 @@
             currentSong = songs.find(s => s.id === id);
             
             if (currentSong) {
+                document.getElementById('app-section').style.display = 'none';
                 document.getElementById('controls').style.display = 'block';
-                document.getElementById('reader').style.display = 'none';
                 document.getElementById('song-id-display').innerText = id;
+                document.getElementById('player-status').innerText = "Klaar om te starten";
             } else {
                 alert("QR niet gevonden!");
                 initScanner();
             }
         }
 
+        // --- AFSPELEN ---
         async function playCurrentSong() {
-            if(!deviceId) return alert("Speler nog niet klaar...");
-            const token = localStorage.getItem('access_token');
+            const btn = document.getElementById('sdkPlayBtn');
+            const status = document.getElementById('player-status');
             
-            await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-            });
-            document.getElementById('player-status').innerText = "Gestart!";
+            if(!deviceId) {
+                status.innerText = "⚠️ Geen speler gevonden. Refresh pagina.";
+                return;
+            }
+
+            status.innerText = "Laden...";
+            
+            try {
+                await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                });
+                status.innerText = "🎶 Muziek speelt!";
+                status.style.color = "#1db954";
+            } catch (e) {
+                console.error(e);
+                status.innerText = "Foutje. Probeer opnieuw.";
+            }
         }
 
         function resetScanner() {
+            if(spotifyPlayer) spotifyPlayer.pause();
             document.getElementById('controls').style.display = 'none';
-            document.getElementById('reader').style.display = 'block';
-            document.getElementById('player-status').innerText = "Klik om te starten";
+            document.getElementById('app-section').style.display = 'block';
+            document.getElementById('status').innerText = "Scan een kaart...";
             initScanner();
         }
 
-        // Start flow
-        handleRedirect();
+        // Start
+        handleToken();
 
     </script>
-
-    <script src="https://sdk.scdn.co/spotify-player.js"></script>
 </body>
 </html>
