@@ -9,19 +9,19 @@
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
-        /* Algemene Styling */
+        /* Algemeen */
         body { 
             background-color: #121212; 
             color: white; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
             touch-action: manipulation; 
-            display: flex; flex-direction: column; min-height: 100vh;
+            display: flex; flex-direction: column; min-height: 100vh; margin: 0;
         }
         
-        .header { margin-bottom: 20px; margin-top: 10px; }
-        .header h1 { font-weight: 800; letter-spacing: -1px; }
+        .header { margin-top: 20px; margin-bottom: 10px; z-index: 1; }
+        .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
 
-        /* Scanner Styling - BUG FIXES HIER */
+        /* Scanner */
         #reader { 
             width: 100%; 
             max-width: 400px; 
@@ -30,70 +30,82 @@
             overflow: hidden; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             background: #000;
-            min-height: 300px; /* CRUCIAAL: Voorkomt dichtklappen */
+            min-height: 300px;
             position: relative;
+            z-index: 1;
         }
         
-        /* Forceer de video om altijd zichtbaar te zijn */
-        #reader video {
-            width: 100% !important;
-            height: auto !important;
-            display: block !important;
-            object-fit: cover;
-        }
-
-        /* Styling van de scanner interface */
-        #reader img[alt="Info icon"] { display: none; } 
+        #reader video { width: 100% !important; height: auto !important; display: block !important; object-fit: cover; }
         #reader img[src*="camera"] { filter: invert(1); opacity: 0.8; } 
-        #reader__dashboard_section_csr span, 
-        #reader__dashboard_section_swaplink { display: none !important; }
+        #reader__dashboard_section_csr span, #reader__dashboard_section_swaplink { display: none !important; }
         
-        /* De Permissie Knop Styling */
-        #reader__dashboard_section_csr button {
-            background-color: #1db954;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border-radius: 50px;
-            margin-top: 80px; /* Mooi in het midden */
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4);
+        /* FULL SCREEN CONTROLS (De aanpassing!) */
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #121212; /* Diep zwart */
+            z-index: 9999; /* Bovenop alles */
+            display: none; /* Wordt 'flex' via JS */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
-        /* Knoppen en Kaarten */
-        .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px; font-size: 1.1rem; width: 100%; margin-bottom: 10px; border-radius: 50px;}
-        .card-custom { background-color: #181818; border: none; margin-top: 20px; padding: 40px 20px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);}
+        /* Grote Tekst */
+        .found-text { font-size: 2rem; font-weight: bold; margin-bottom: 10px; color: #1db954; }
+        .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 40px; letter-spacing: 2px; }
 
+        /* DE GIGANTISCHE KNOP */
         .big-play-btn {
-            width: 120px; height: 120px;
+            width: 200px; /* Veel groter */
+            height: 200px; /* Veel groter */
             border-radius: 50%;
             background-color: #1db954;
             border: none;
             color: white;
-            font-size: 3rem;
-            box-shadow: 0 0 40px rgba(29, 185, 84, 0.4);
-            margin: 30px auto;
+            font-size: 6rem; /* Enorm icoon */
+            box-shadow: 0 0 60px rgba(29, 185, 84, 0.4);
             display: flex; align-items: center; justify-content: center;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            -webkit-tap-highlight-color: transparent;
+            margin-bottom: 50px;
         }
         .big-play-btn:active { transform: scale(0.9); }
-        .big-play-btn.paused { background-color: white; color: #1db954; }
+        .big-play-btn.paused { background-color: white; color: #1db954; box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }
         
+        /* Volgende knop onderaan */
+        .btn-next {
+            background: #333; 
+            color: white;
+            border: none; 
+            border-radius: 50px; 
+            padding: 20px 40px; 
+            font-size: 1.2rem;
+            width: 80%;
+            max-width: 300px;
+            font-weight: bold;
+        }
+        .btn-next:active { background: #444; }
+
+        .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; }
     </style>
 </head>
-<body class="text-center p-3">
+<body class="text-center">
 
     <div class="header">
         <h1>🎵 HITSTER BE</h1>
     </div>
 
-    <div id="login-section" style="display:none; margin-top: 50px;">
-        <p class="mb-4 text-muted">Verbind met Spotify om te starten</p>
-        <button onclick="pkceLogin()" class="btn btn-spotify" style="max-width: 300px;">Log in met Spotify</button>
+    <div id="login-section" style="display:none;">
+        <p class="mt-5 text-muted">Verbind met Spotify om te starten</p>
+        <button onclick="pkceLogin()" class="btn btn-spotify">Log in met Spotify</button>
     </div>
 
     <div id="loading-section" style="display:none; margin-top: 100px;">
@@ -106,14 +118,14 @@
         <div id="status" class="status-text">Richt je camera op een kaart</div>
     </div>
 
-    <div id="controls" class="card-custom" style="display:none;">
-        <h2 class="text-white mb-1">Gevonden!</h2>
-        <p class="text-muted small">Kaart #<span id="song-id-display"></span></p>
+    <div id="controls">
+        <div class="found-text">Gevonden!</div>
+        <div class="card-id-text" style="visibility: hidden;">KAART #<span id="song-id-display">0</span></div>
         
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn" disabled>▶️</button>
         <p class="status-text" id="player-status">Laden...</p>
 
-        <button onclick="resetScanner()" class="btn btn-secondary w-100 mt-4" style="background: #333; border: none; border-radius: 50px; padding: 15px;">Volgende Kaart</button>
+        <button onclick="resetScanner()" class="btn-next">Volgende Kaart</button>
     </div>
 
     <script src="songs.js"></script> 
@@ -210,13 +222,11 @@
                     if (isPlaying) {
                         btn.innerText = "⏸️"; 
                         btn.classList.add('paused');
-                        statusText.innerText = "Nu aan het spelen";
-                        statusText.style.color = "#1db954";
+                        statusText.innerText = ""; // Tekst weg als muziek speelt voor cleanere look
                     } else {
                         btn.innerText = "▶️";
                         btn.classList.remove('paused');
                         statusText.innerText = "Gepauzeerd";
-                        statusText.style.color = "#b3b3b3";
                     }
                 });
 
@@ -244,22 +254,9 @@
 
         function initScanner() {
             if(html5QrcodeScanner) return;
-            
-            const config = { 
-                fps: 10, 
-                qrbox: 250,
-                // Dit forceert betere performance op iOS
-                useBarCodeDetectorIfSupported: true,
-                supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] 
-            };
-            
-            // Foutafhandeling voor de camera
-            const onScanFailure = (error) => {
-                // Doen we niks mee, anders spam je de console
-            };
-
+            const config = { fps: 10, qrbox: 250, useBarCodeDetectorIfSupported: true, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
-            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            html5QrcodeScanner.render(onScanSuccess);
         }
 
         function onScanSuccess(decodedText) {
@@ -271,8 +268,9 @@
                     html5QrcodeScanner.clear().then(() => {
                         html5QrcodeScanner = null;
                         isTrackLoaded = false;
-                        document.getElementById('app-section').style.display = 'none';
-                        document.getElementById('controls').style.display = 'block';
+                        
+                        // HIER MAKEN WE HEM FULL SCREEN (Flex)
+                        document.getElementById('controls').style.display = 'flex'; 
                         document.getElementById('song-id-display').innerText = id;
                         
                         const btn = document.getElementById('sdkPlayBtn');
@@ -318,7 +316,6 @@
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
             document.getElementById('controls').style.display = 'none';
-            document.getElementById('app-section').style.display = 'block';
             
             const btn = document.getElementById('sdkPlayBtn');
             btn.innerText = "▶️";
