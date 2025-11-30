@@ -21,7 +21,7 @@
         .header { margin-bottom: 20px; margin-top: 10px; }
         .header h1 { font-weight: 800; letter-spacing: -1px; }
 
-        /* Scanner Styling */
+        /* Scanner Styling - BUG FIXES HIER */
         #reader { 
             width: 100%; 
             max-width: 400px; 
@@ -30,17 +30,25 @@
             overflow: hidden; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             background: #000;
+            min-height: 300px; /* CRUCIAAL: Voorkomt dichtklappen */
+            position: relative;
         }
         
-        /* Het camera icoontje wit maken met een filter */
-        #reader img[alt="Info icon"] { display: none; } /* Verberg info icon */
-        #reader img[src*="camera"] { filter: invert(1); opacity: 0.8; } 
+        /* Forceer de video om altijd zichtbaar te zijn */
+        #reader video {
+            width: 100% !important;
+            height: auto !important;
+            display: block !important;
+            object-fit: cover;
+        }
 
-        /* Verberg de lelijke tekst en linkjes van de scanner library */
+        /* Styling van de scanner interface */
+        #reader img[alt="Info icon"] { display: none; } 
+        #reader img[src*="camera"] { filter: invert(1); opacity: 0.8; } 
         #reader__dashboard_section_csr span, 
         #reader__dashboard_section_swaplink { display: none !important; }
         
-        /* Maak de permissie knop mooi */
+        /* De Permissie Knop Styling */
         #reader__dashboard_section_csr button {
             background-color: #1db954;
             color: white;
@@ -49,7 +57,7 @@
             font-size: 1.1rem;
             font-weight: bold;
             border-radius: 50px;
-            margin-top: 50px; /* Duw hem naar het midden */
+            margin-top: 80px; /* Mooi in het midden */
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4);
         }
@@ -72,9 +80,8 @@
             transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .big-play-btn:active { transform: scale(0.9); }
-        .big-play-btn.paused { background-color: white; color: #1db954; } /* Wit als hij speelt */
+        .big-play-btn.paused { background-color: white; color: #1db954; }
         
-        /* Status tekstjes */
         .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; }
     </style>
 </head>
@@ -101,7 +108,7 @@
 
     <div id="controls" class="card-custom" style="display:none;">
         <h2 class="text-white mb-1">Gevonden!</h2>
-        <p class="text-muted small" style="visibility: hidden;">Kaart #<span id="song-id-display"></span></p>
+        <p class="text-muted small">Kaart #<span id="song-id-display"></span></p>
         
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn" disabled>▶️</button>
         <p class="status-text" id="player-status">Laden...</p>
@@ -238,15 +245,21 @@
         function initScanner() {
             if(html5QrcodeScanner) return;
             
-            // CONFIG: Alleen QR codes scannen, geen bestanden uploaden
             const config = { 
                 fps: 10, 
                 qrbox: 250,
+                // Dit forceert betere performance op iOS
+                useBarCodeDetectorIfSupported: true,
                 supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] 
             };
             
+            // Foutafhandeling voor de camera
+            const onScanFailure = (error) => {
+                // Doen we niks mee, anders spam je de console
+            };
+
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
-            html5QrcodeScanner.render(onScanSuccess);
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
 
         function onScanSuccess(decodedText) {
