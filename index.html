@@ -136,7 +136,11 @@
         <button onclick="resetScanner()" class="btn-next">Volgende Kaart</button>
     </div>
 
-    <script src="songs.js"></script> 
+    <script>
+    var script = document.createElement('script');
+    script.src = "songs.js?v=" + new Date().getTime();
+    document.head.appendChild(script);
+</script> 
 
     <script>
         // ================= CONFIGURATIE =================
