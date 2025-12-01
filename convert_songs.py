@@ -2,7 +2,7 @@ import pandas as pd
 import re
 
 # --- INSTELLINGEN ---
-input_bestand = 'Hitster_BE_208.xlsx'  # Zorg dat deze naam klopt!
+input_bestand = 'Hitster_BE.xlsx'  # Zorg dat deze naam klopt!
 output_bestand = 'songs.js'
 # --------------------
 
