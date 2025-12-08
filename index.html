@@ -142,7 +142,7 @@
     var script = document.createElement('script');
     script.src = "songs.js?v=" + new Date().getTime();
     document.head.appendChild(script);
-</script> 
+    </script> 
 
     <script>
         // ================= CONFIGURATIE =================
@@ -157,6 +157,9 @@
         let currentSong = null;
         let isTrackLoaded = false;
         let isPlaying = false;
+        
+        // NIEUW: Voorkomt dat de scanner op hol slaat bij een fout
+        let isScanningLocked = false;
 
         async function pkceLogin() {
             const generateRandomString = (length) => {
@@ -266,25 +269,49 @@
             });
         }
 
+        // --- SCANNER LOGICA (GEFIXT VOOR FOUTE CODES) ---
         function initScanner() {
             if(html5QrcodeScanner) return;
-            // Alleen Camera, geen files
-            const config = { fps: 10, qrbox: 250, useBarCodeDetectorIfSupported: true, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
+            
+            // Reset lock bij start
+            isScanningLocked = false;
+
+            const config = { 
+                fps: 10, 
+                qrbox: 250, 
+                useBarCodeDetectorIfSupported: true, 
+                supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] 
+            };
+            
+            // We vangen de error callback ook op om spam in de console te voorkomen
+            const onScanFailure = (error) => {
+                // Do nothing, scanning continues...
+            };
+
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
-            html5QrcodeScanner.render(onScanSuccess);
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
 
         function onScanSuccess(decodedText) {
+            // 1. Als we al bezig zijn met een verwerking (of error cooldown), doe niks.
+            if (isScanningLocked) return;
+
+            // 2. Probeer de tekst om te zetten naar een nummer
             const id = parseInt(decodedText);
-            currentSong = songs.find(s => s.id === id);
+
+            // 3. Zoek het liedje
+            const foundSong = songs.find(s => s.id === id);
             
-            if (currentSong) {
+            if (foundSong) {
+                // --- SUCCES: GELDIGE KAART ---
+                isScanningLocked = true; // Lock alles
+                currentSong = foundSong; // Sla op
+
                 if (html5QrcodeScanner) {
                     html5QrcodeScanner.clear().then(() => {
                         html5QrcodeScanner = null;
                         isTrackLoaded = false;
                         
-                        // FULL SCREEN CONTROLS (flex)
                         document.getElementById('controls').style.display = 'flex'; 
                         document.getElementById('song-id-display').innerText = id;
                         
@@ -295,8 +322,29 @@
                     }).catch(err => console.log(err));
                 }
             } else {
-                alert("QR niet gevonden!");
+                // --- FOUT: ONGELDIGE CODE ---
+                handleScanError("Ongeldige kaart!");
             }
+        }
+
+        function handleScanError(msg) {
+            console.warn(msg);
+            isScanningLocked = true; // Even blokkeren zodat we geen 100 errors per seconde krijgen
+            
+            const statusEl = document.getElementById('status');
+            const originalText = statusEl.innerText;
+            const originalColor = statusEl.style.color;
+
+            // Toon visuele feedback
+            statusEl.innerText = "⚠️ " + msg;
+            statusEl.style.color = "#ff4444"; // Rood
+
+            // Na 2 seconden mag je weer scannen
+            setTimeout(() => {
+                statusEl.innerText = "Richt je camera op een kaart";
+                statusEl.style.color = "#b3b3b3"; // Terug naar grijs
+                isScanningLocked = false; // Unlock
+            }, 2000);
         }
 
         async function togglePlayback() {
@@ -339,6 +387,11 @@
             isTrackLoaded = false;
             initScanner();
         }
+
+        // CACHE BUSTER: Laadt altijd de nieuwste versie van songs.js
+        var script = document.createElement('script');
+        script.src = "songs.js?v=" + new Date().getTime();
+        document.head.appendChild(script);
 
         handleToken();
     </script>
