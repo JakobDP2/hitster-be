@@ -105,6 +105,31 @@
 
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; }
+
+        /* ERROR STYLING */
+        .status-error {
+            color: #ff4444 !important; /* Fel rood */
+            font-size: 1.5rem !important; /* Veel groter */
+            font-weight: bold;
+            text-transform: uppercase;
+            
+            /* Kader eromheen zodat het opvalt */
+            background: rgba(20, 0, 0, 0.9);
+            border: 2px solid #ff4444;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            
+            /* Animatie: Schudden */
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
     </style>
 </head>
 <body class="text-center">
@@ -329,20 +354,21 @@
 
         function handleScanError(msg) {
             console.warn(msg);
-            isScanningLocked = true; // Even blokkeren zodat we geen 100 errors per seconde krijgen
+            isScanningLocked = true; // Blokkeer nieuwe scans
             
             const statusEl = document.getElementById('status');
-            const originalText = statusEl.innerText;
-            const originalColor = statusEl.style.color;
+            
+            // Bewaar originele tekst (voor als we terugkeren)
+            const originalText = "Richt je camera op een kaart"; 
 
-            // Toon visuele feedback
+            // Pas de stijl aan naar ERROR modus
             statusEl.innerText = "⚠️ " + msg;
-            statusEl.style.color = "#ff4444"; // Rood
+            statusEl.classList.add('status-error'); // Voeg de CSS klasse toe
 
-            // Na 2 seconden mag je weer scannen
+            // Na 2 seconden mag je weer scannen en resetten we de look
             setTimeout(() => {
-                statusEl.innerText = "Richt je camera op een kaart";
-                statusEl.style.color = "#b3b3b3"; // Terug naar grijs
+                statusEl.innerText = originalText;
+                statusEl.classList.remove('status-error'); // Verwijder de CSS klasse
                 isScanningLocked = false; // Unlock
             }, 2000);
         }
