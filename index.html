@@ -348,12 +348,38 @@
             else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
+        // --- VOLUME TRUCJE ---
+        async function smartVolumeCheck() {
+            if (!currentSong || !currentSong.year) return;
+            
+            let targetVolume = 1.0; // Standaard 100%
+
+            // Oude nummers zijn vaak zacht, nieuwe hard.
+            // Dit is een grove schatting.
+            if (currentSong.year >= 2010) {
+                targetVolume = 0.6; // Heel modern = Hard = 60%
+            } else if (currentSong.year >= 1995) {
+                targetVolume = 0.75; // Jaren 90/00 = Redelijk hard = 75%
+            } else {
+                targetVolume = 1.0; // Oud = Zacht = 100%
+            }
+
+            if (spotifyPlayer) {
+                await spotifyPlayer.setVolume(targetVolume);
+                console.log(`Volume aangepast naar ${targetVolume * 100}% voor jaar ${currentSong.year}`);
+            }
+        }
+
         async function playCurrentSong() {
             const status = document.getElementById('player-status');
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
             
             try {
+                // EERST: Pas volume aan op basis van jaartal
+                await smartVolumeCheck();
+
+                // DAN: Start nummer
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                     method: 'PUT',
                     body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
@@ -366,8 +392,11 @@
                     return;
                 }
                 isTrackLoaded = true;
-                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
-            } catch (e) { console.error(e); status.innerText = "Foutje."; }
+              
+            } catch (e) { 
+                console.error(e); 
+                status.innerText = "Foutje."; 
+            }
         }
 
         function resetScanner() {
