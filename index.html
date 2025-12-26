@@ -1,29 +1,28 @@
-<!-- This is the working version -->
-<!-- Buggy when scans card not in the list -->
 <!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hitster BE</title>
+    <title>Hitster BE Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
-        /* Algemeen */
+        /* --- 1. STIJL --- */
         body { 
             background-color: #121212; 
             color: white; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
             touch-action: manipulation; 
             display: flex; flex-direction: column; min-height: 100vh; margin: 0;
+            overflow: hidden; /* Voorkomt scrollen */
         }
         
-        .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
-        .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .header { margin-top: 15px; margin-bottom: 10px; z-index: 1; }
+        .header h1 { font-weight: 800; font-size: 1.5rem; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
 
-        /* --- SCANNER STYLING (HERSTELD!) --- */
+        /* SCANNER */
         #reader { 
             width: 100%; 
             max-width: 400px; 
@@ -32,104 +31,57 @@
             overflow: hidden; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             background: #000;
-            min-height: 350px; /* Iets hoger voor de knop */
+            min-height: 300px; /* Iets kleiner */
             position: relative;
             z-index: 1;
         }
         
-        /* Video correct schalen */
         #reader video { width: 100% !important; height: auto !important; display: block !important; object-fit: cover; }
         
-        /* Icoontjes wit maken */
-        #reader img[src*="camera"] { filter: invert(1); opacity: 0.8; } 
-        #reader img[alt="Info icon"] { display: none; } 
-
-        /* Verberg lelijke links */
-        #reader__dashboard_section_csr span, 
-        #reader__dashboard_section_swaplink { display: none !important; }
+        /* Verberg nutteloze scanner knoppen */
+        #reader__dashboard_section_csr span, #reader__dashboard_section_swaplink, #reader img[alt="Info icon"] { display: none !important; }
         
-        /* DE PERMISSIE KNOP (Terug mooi gemaakt!) */
-        #reader__dashboard_section_csr button {
-            background-color: #1db954 !important;
-            color: white !important;
-            border: none !important;
-            padding: 15px 30px !important;
-            font-size: 1.1rem !important;
-            font-weight: bold !important;
-            border-radius: 50px !important;
-            margin-top: 100px !important; /* Mooi in het midden */
-            cursor: pointer !important;
-            box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4) !important;
-            text-decoration: none !important;
-            display: inline-block !important;
-        }
-
-        /* --- FULL SCREEN CONTROLS --- */
+        /* CONTROLS (FULL SCREEN OVERLAY) */
         #controls {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #121212;
-            z-index: 9999;
-            display: none; /* Flex via JS */
-            flex-direction: column; justify-content: center; align-items: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #121212; z-index: 9999;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
             padding: 20px; box-sizing: border-box;
         }
 
         .found-text { font-size: 2rem; font-weight: bold; margin-bottom: 10px; color: #1db954; }
-        .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 40px; letter-spacing: 2px; }
+        .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 30px; letter-spacing: 2px; }
 
-        /* Grote Play Knop */
         .big-play-btn {
-            width: 200px; height: 200px;
-            border-radius: 50%;
-            background-color: #1db954;
-            border: none;
-            color: white;
-            font-size: 6rem;
-            box-shadow: 0 0 60px rgba(29, 185, 84, 0.4);
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            -webkit-tap-highlight-color: transparent;
-            margin-bottom: 50px;
+            width: 180px; height: 180px; border-radius: 50%; background-color: #1db954; border: none;
+            color: white; font-size: 5rem; box-shadow: 0 0 60px rgba(29, 185, 84, 0.4);
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.2s; -webkit-tap-highlight-color: transparent; margin-bottom: 40px;
         }
-        .big-play-btn:active { transform: scale(0.9); }
+        .big-play-btn:active { transform: scale(0.95); }
         .big-play-btn.paused { background-color: white; color: #1db954; box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }
         
-        /* Volgende knop */
         .btn-next {
             background: #333; color: white; border: none; border-radius: 50px; 
             padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }
-        .btn-next:active { background: #444; }
+        .btn-next:active { background: #444; transform: translateY(2px); }
 
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
-        .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; }
+        
+        .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 15px; min-height: 20px; transition: all 0.2s; }
 
-        /* ERROR STYLING */
+        /* ERROR STIJL */
         .status-error {
-            color: #ff4444 !important; /* Fel rood */
-            font-size: 1.5rem !important; /* Veel groter */
-            font-weight: bold;
-            text-transform: uppercase;
-            
-            /* Kader eromheen zodat het opvalt */
-            background: rgba(20, 0, 0, 0.9);
-            border: 2px solid #ff4444;
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 20px;
-            
-            /* Animatie: Schudden */
-            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            color: #ff4444 !important; font-size: 1.3rem !important; font-weight: 800; text-transform: uppercase;
+            background: rgba(50, 0, 0, 0.9); border: 2px solid #ff4444; padding: 10px; border-radius: 10px;
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
         }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
 
-        @keyframes shake {
-            10%, 90% { transform: translate3d(-1px, 0, 0); }
-            20%, 80% { transform: translate3d(2px, 0, 0); }
-            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-            40%, 60% { transform: translate3d(4px, 0, 0); }
-        }
+        /* HERSTART KNOP (Alleen zichtbaar als camera vastloopt) */
+        #restart-cam-btn { display:none; margin-top:10px; background:transparent; border:1px solid #666; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8rem; }
     </style>
 </head>
 <body class="text-center">
@@ -151,11 +103,12 @@
     <div id="app-section" style="display:none;">
         <div id="reader"></div>
         <div id="status" class="status-text">Richt je camera op een kaart</div>
+        <button id="restart-cam-btn" onclick="hardResetCamera()">⚠️ Camera vastgelopen? Klik hier</button>
     </div>
 
     <div id="controls">
         <div class="found-text">Gevonden!</div>
-        <div class="card-id-text" style="visibility: hidden;">KAART #<span id="song-id-display">0</span></div>
+        <div class="card-id-text">KAART #<span id="song-id-display">0</span></div>
         
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn" disabled>▶️</button>
         <p class="status-text" id="player-status">Laden...</p>
@@ -164,15 +117,15 @@
     </div>
 
     <script>
-    var script = document.createElement('script');
-    script.src = "songs.js?v=" + new Date().getTime();
-    document.head.appendChild(script);
-    </script> 
+        var script = document.createElement('script');
+        script.src = "songs.js?v=" + new Date().getTime(); 
+        document.head.appendChild(script);
+    </script>
 
     <script>
         // ================= CONFIGURATIE =================
-        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW ID
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW URL
+        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // <--- JOUW ID
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // <--- JOUW URL
         // ================================================
 
         let accessToken = null;
@@ -182,16 +135,30 @@
         let currentSong = null;
         let isTrackLoaded = false;
         let isPlaying = false;
-        
-        // NIEUW: Voorkomt dat de scanner op hol slaat bij een fout
         let isScanningLocked = false;
+        let wakeLock = null; // Voor het wakker houden van het scherm
 
+        // --- 1. WAKE LOCK (Houdt scherm aan) ---
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Scherm blijft aan!');
+                    wakeLock.addEventListener('release', () => { console.log('Wake Lock gestopt'); });
+                }
+            } catch (err) { console.error(`${err.name}, ${err.message}`); }
+        }
+
+        // Heractiveer Wake Lock als de gebruiker terugkomt naar de tab
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') { requestWakeLock(); }
+        });
+
+        // --- 2. AUTHENTICATIE ---
         async function pkceLogin() {
             const generateRandomString = (length) => {
                 const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                let text = '';
-                for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); }
-                return text;
+                let text = ''; for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); } return text;
             };
             const generateCodeChallenge = async (codeVerifier) => {
                 const data = new TextEncoder().encode(codeVerifier);
@@ -202,11 +169,9 @@
             const codeVerifier = generateRandomString(128);
             localStorage.setItem('pkce_code_verifier', codeVerifier);
             const codeChallenge = await generateCodeChallenge(codeVerifier);
-            const scope = 'streaming user-read-email user-read-private user-modify-playback-state';
-            
             const args = new URLSearchParams({
-                response_type: 'code', client_id: clientId, scope: scope, redirect_uri: redirectUri,
-                code_challenge_method: 'S256', code_challenge: codeChallenge
+                response_type: 'code', client_id: clientId, scope: 'streaming user-read-email user-read-private user-modify-playback-state', 
+                redirect_uri: redirectUri, code_challenge_method: 'S256', code_challenge: codeChallenge
             });
             window.location = 'https://accounts.spotify.com/authorize?' + args;
         }
@@ -222,6 +187,7 @@
                     const data = await response.json();
                     if(data.access_token) {
                         localStorage.setItem('access_token', data.access_token);
+                        window.history.replaceState({}, document.title, "/hitster-be/"); // URL opschonen
                         window.location.href = redirectUri; 
                     }
                 } catch(e) { console.error(e); }
@@ -231,28 +197,26 @@
             }
         }
 
+        // --- 3. SPOTIFY PLAYER ---
         function startApp() {
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
-
+            
+            // Activeer audio engine bij eerste tik
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
 
             window.onSpotifyWebPlaybackSDKReady = () => {
-                const player = new Spotify.Player({
-                    name: 'Hitster BE Mobile',
-                    getOAuthToken: cb => { cb(accessToken); },
-                    volume: 1.0
-                });
+                const player = new Spotify.Player({ name: 'Hitster BE Pro', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
 
                 player.addListener('ready', ({ device_id }) => {
                     console.log('Ready with Device ID', device_id);
                     deviceId = device_id;
-                    transferPlayback(device_id); 
-                    
+                    transferPlayback(device_id);
                     document.getElementById('loading-section').style.display = 'none';
                     document.getElementById('app-section').style.display = 'block';
-                    initScanner();
+                    requestWakeLock(); // Scherm aanhouden!
+                    initScanner(); // Start camera
                 });
 
                 player.addListener('player_state_changed', state => {
@@ -260,19 +224,20 @@
                     isPlaying = !state.paused;
                     const btn = document.getElementById('sdkPlayBtn');
                     const statusText = document.getElementById('player-status');
-                    
                     if (isPlaying) {
-                        btn.innerText = "⏸️"; 
-                        btn.classList.add('paused');
-                        statusText.innerText = "";
+                        btn.innerText = "⏸️"; btn.classList.add('paused'); statusText.innerText = "";
                     } else {
-                        btn.innerText = "▶️";
-                        btn.classList.remove('paused');
-                        statusText.innerText = "Gepauzeerd";
+                        btn.innerText = "▶️"; btn.classList.remove('paused'); statusText.innerText = "Gepauzeerd";
                     }
                 });
 
-                player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
+                // Token verlopen? Opnieuw inloggen!
+                player.addListener('authentication_error', () => { 
+                    alert("Sessie verlopen. Even opnieuw inloggen...");
+                    localStorage.removeItem('access_token'); 
+                    window.location.reload(); 
+                });
+
                 player.connect();
                 spotifyPlayer = player;
             };
@@ -280,144 +245,157 @@
         }
 
         function unlockAudio() {
-            const audio = new Audio();
-            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; 
+            const audio = new Audio(); audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; 
             audio.play().catch(e => {});
             if(spotifyPlayer) spotifyPlayer.activateElement(); 
         }
 
         async function transferPlayback(id) {
             await fetch('https://api.spotify.com/v1/me/player', {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ "device_ids": [id], "play": false }) 
             });
         }
 
-        // --- SCANNER LOGICA (GEFIXT VOOR FOUTE CODES) ---
+        // --- 4. SCANNER LOGICA (GEOPTIMALISEERD) ---
         function initScanner() {
-            if(html5QrcodeScanner) return;
-            
-            // Reset lock bij start
+            if(html5QrcodeScanner) return; // Draait al
             isScanningLocked = false;
+            document.getElementById('restart-cam-btn').style.display = 'none';
 
-            const config = { 
-                fps: 10, 
-                qrbox: 250, 
-                useBarCodeDetectorIfSupported: true, 
-                supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] 
-            };
+            // Kleinere QR box voor snellere detectie op mobiel
+            const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
             
-            // We vangen de error callback ook op om spam in de console te voorkomen
-            const onScanFailure = (error) => {
-                // Do nothing, scanning continues...
-            };
-
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
-            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            html5QrcodeScanner.render(onScanSuccess, (error) => {
+                // Stille error log
+            });
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear().then(() => {
+                    html5QrcodeScanner = null;
+                }).catch(err => {
+                    console.error("Stop error", err);
+                    html5QrcodeScanner = null; // Forceer reset
+                });
+            }
         }
 
         function onScanSuccess(decodedText) {
-            // 1. Als we al bezig zijn met een verwerking (of error cooldown), doe niks.
             if (isScanningLocked) return;
-
-            // 2. Probeer de tekst om te zetten naar een nummer
             const id = parseInt(decodedText);
 
-            // 3. Zoek het liedje
+            if (typeof songs === 'undefined') { console.log("Lijst nog laden..."); return; }
             const foundSong = songs.find(s => s.id === id);
             
             if (foundSong) {
-                // --- SUCCES: GELDIGE KAART ---
-                isScanningLocked = true; // Lock alles
-                currentSong = foundSong; // Sla op
-
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.clear().then(() => {
-                        html5QrcodeScanner = null;
-                        isTrackLoaded = false;
-                        
-                        document.getElementById('controls').style.display = 'flex'; 
-                        document.getElementById('song-id-display').innerText = id;
-                        
-                        const btn = document.getElementById('sdkPlayBtn');
-                        btn.disabled = false;
-                        
-                        playCurrentSong();
-                    }).catch(err => console.log(err));
-                }
+                // SUCCES
+                isScanningLocked = true;
+                currentSong = foundSong;
+                
+                // STOP DE CAMERA DIRECT OM BATTERIJ EN CRASHES TE VOORKOMEN
+                stopScanner(); 
+                
+                // Toon speler
+                document.getElementById('app-section').style.display = 'none';
+                document.getElementById('controls').style.display = 'flex'; 
+                document.getElementById('song-id-display').innerText = id;
+                document.getElementById('sdkPlayBtn').disabled = false;
+                
+                playCurrentSong();
             } else {
-                // --- FOUT: ONGELDIGE CODE ---
-                handleScanError("Ongeldige kaart!");
+                handleScanError("ONGELDIGE KAART!");
             }
         }
 
         function handleScanError(msg) {
-            console.warn(msg);
-            isScanningLocked = true; // Blokkeer nieuwe scans
-            
+            isScanningLocked = true;
             const statusEl = document.getElementById('status');
-            
-            // Bewaar originele tekst (voor als we terugkeren)
-            const originalText = "Richt je camera op een kaart"; 
-
-            // Pas de stijl aan naar ERROR modus
+            const originalText = "Richt je camera op een kaart";
             statusEl.innerText = "⚠️ " + msg;
-            statusEl.classList.add('status-error'); // Voeg de CSS klasse toe
+            statusEl.classList.add('status-error'); 
+            
+            // Tril feedback (als ondersteund)
+            if (navigator.vibrate) navigator.vibrate(200);
 
-            // Na 2 seconden mag je weer scannen en resetten we de look
             setTimeout(() => {
                 statusEl.innerText = originalText;
-                statusEl.classList.remove('status-error'); // Verwijder de CSS klasse
-                isScanningLocked = false; // Unlock
+                statusEl.classList.remove('status-error'); 
+                isScanningLocked = false; 
             }, 2000);
         }
 
-        async function togglePlayback() {
-            if (!isTrackLoaded) {
-                playCurrentSong();
-            } else {
-                if (spotifyPlayer) spotifyPlayer.togglePlay();
-            }
-        }
-
+        // --- 5. AFSPELEN ---
         async function playCurrentSong() {
-            const btn = document.getElementById('sdkPlayBtn');
             const status = document.getElementById('player-status');
-            
-            if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
+            if(!deviceId) { status.innerText = "⚠️ Geen speler connectie."; return; }
             status.innerText = "Laden...";
             
             try {
-                await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+                const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                     method: 'PUT',
                     body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
                 });
+                
+                if (res.status === 401) {
+                    alert("Sessie verlopen, pagina herlaadt...");
+                    localStorage.removeItem('access_token');
+                    window.location.reload();
+                    return;
+                }
+
                 isTrackLoaded = true;
+                // Volume check (optioneel)
                 fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
             } catch (e) {
                 console.error(e);
-                status.innerText = "Foutje.";
+                status.innerText = "Fout bij afspelen.";
             }
         }
 
+        function togglePlayback() {
+            if (!isTrackLoaded) playCurrentSong();
+            else if (spotifyPlayer) spotifyPlayer.togglePlay();
+        }
+
+        // --- 6. VOLGENDE KAART ---
         function resetScanner() {
+            // Pauzeer muziek
             if(spotifyPlayer) spotifyPlayer.pause();
-            document.getElementById('controls').style.display = 'none';
             
+            // Switch UI
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('app-section').style.display = 'block';
+            
+            // Reset knop
             const btn = document.getElementById('sdkPlayBtn');
             btn.innerText = "▶️";
             btn.classList.remove('paused');
             
             isTrackLoaded = false;
-            initScanner();
+            
+            // START CAMERA NU PAS OPNIEUW (Vers geheugen)
+            setTimeout(() => {
+                initScanner();
+                requestWakeLock(); // Zeker weten dat scherm aan blijft
+            }, 300);
         }
 
-        // CACHE BUSTER: Laadt altijd de nieuwste versie van songs.js
-        var script = document.createElement('script');
-        script.src = "songs.js?v=" + new Date().getTime();
-        document.head.appendChild(script);
+        // Noodknop functie
+        function hardResetCamera() {
+            stopScanner();
+            setTimeout(initScanner, 500);
+        }
+
+        // Laat de noodknop zien na 10 sec inactiviteit bij camera
+        setInterval(() => {
+            if (document.getElementById('app-section').style.display === 'block' && !html5QrcodeScanner) {
+                document.getElementById('restart-cam-btn').style.display = 'block';
+            }
+        }, 5000);
 
         handleToken();
     </script>
