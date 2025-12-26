@@ -9,13 +9,14 @@
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
-        /* --- 1. ALGEMENE STIJL (ORIGINEEL) --- */
+        /* --- 1. ALGEMENE STIJL --- */
         body { 
             background-color: #121212; 
             color: white; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
             touch-action: manipulation; 
             display: flex; flex-direction: column; min-height: 100vh; margin: 0;
+            overflow: hidden; /* Voorkomt scrollen */
         }
         
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
@@ -48,7 +49,7 @@
             box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4) !important;
         }
 
-        /* --- 3. FULL SCREEN CONTROLS (ORIGINEEL) --- */
+        /* --- 3. CONTROLS --- */
         #controls {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: #121212; z-index: 9999;
@@ -76,30 +77,21 @@
 
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
-        /* --- 4. STATUS EN ERROR MELDINGEN --- */
+        /* --- 4. STATUS EN ERROR --- */
         .status-text { 
             color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; 
             transition: all 0.2s ease;
             padding: 10px; border-radius: 8px;
         }
 
-        /* DE NIEUWE ERROR STIJL (Die wel goed was) */
         .status-error {
-            color: #ff4444 !important; /* Fel rood */
-            font-size: 1.2rem !important;
-            font-weight: 800;
-            text-transform: uppercase;
-            background: rgba(50, 0, 0, 0.8);
-            border: 2px solid #ff4444;
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
+            color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase;
+            background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
             animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
         }
 
         @keyframes shake {
-            10%, 90% { transform: translate3d(-1px, 0, 0); }
-            20%, 80% { transform: translate3d(2px, 0, 0); }
-            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-            40%, 60% { transform: translate3d(4px, 0, 0); }
+            10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); }
         }
     </style>
 </head>
@@ -142,8 +134,8 @@
 
     <script>
         // ================= CONFIGURATIE =================
-        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // <--- VUL HIER JE ID IN
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // <--- JOUW URL
+        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW ID
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW URL
         // ================================================
 
         let accessToken = null;
@@ -154,49 +146,38 @@
         let isTrackLoaded = false;
         let isPlaying = false;
         let isScanningLocked = false;
-        let wakeLock = null; // NIEUW: Voor scherm aanhouden
+        let wakeLock = null;
 
-        // --- 1. WAKE LOCK: HOUDT SCHERM AAN ---
+        // --- WAKE LOCK (SLAAPSTAND BLOKKEREN) ---
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock actief: Scherm blijft aan.');
+                    console.log('Wake Lock actief');
                 }
-            } catch (err) {
-                console.error(`Wake Lock error: ${err.name}, ${err.message}`);
-            }
+            } catch (err) { console.error(`Wake Lock error: ${err.message}`); }
         }
-        
-        // Heractiveer Wake Lock als je even weg bent geweest
         document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                requestWakeLock();
-            }
+            if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock();
         });
 
-        // --- 2. LOGIN LOGICA ---
+        // --- LOGIN ---
         async function pkceLogin() {
             const generateRandomString = (length) => {
                 const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                let text = '';
-                for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); }
-                return text;
+                let text = ''; for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); } return text;
             };
             const generateCodeChallenge = async (codeVerifier) => {
                 const data = new TextEncoder().encode(codeVerifier);
                 const digest = await window.crypto.subtle.digest('SHA-256', data);
                 return btoa(String.fromCharCode.apply(null, new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
             };
-
             const codeVerifier = generateRandomString(128);
             localStorage.setItem('pkce_code_verifier', codeVerifier);
             const codeChallenge = await generateCodeChallenge(codeVerifier);
-            const scope = 'streaming user-read-email user-read-private user-modify-playback-state';
-            
             const args = new URLSearchParams({
-                response_type: 'code', client_id: clientId, scope: scope, redirect_uri: redirectUri,
-                code_challenge_method: 'S256', code_challenge: codeChallenge
+                response_type: 'code', client_id: clientId, scope: 'streaming user-read-email user-read-private user-modify-playback-state',
+                redirect_uri: redirectUri, code_challenge_method: 'S256', code_challenge: codeChallenge
             });
             window.location = 'https://accounts.spotify.com/authorize?' + args;
         }
@@ -212,6 +193,7 @@
                     const data = await response.json();
                     if(data.access_token) {
                         localStorage.setItem('access_token', data.access_token);
+                        window.history.replaceState({}, document.title, "/hitster-be/"); 
                         window.location.href = redirectUri; 
                     }
                 } catch(e) { console.error(e); }
@@ -221,7 +203,7 @@
             }
         }
 
-        // --- 3. START APP ---
+        // --- START APP ---
         function startApp() {
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
@@ -230,11 +212,7 @@
             document.body.addEventListener('click', unlockAudio, { once: true });
 
             window.onSpotifyWebPlaybackSDKReady = () => {
-                const player = new Spotify.Player({
-                    name: 'Hitster BE Mobile',
-                    getOAuthToken: cb => { cb(accessToken); },
-                    volume: 1.0
-                });
+                const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
 
                 player.addListener('ready', ({ device_id }) => {
                     console.log('Ready with Device ID', device_id);
@@ -244,7 +222,7 @@
                     document.getElementById('loading-section').style.display = 'none';
                     document.getElementById('app-section').style.display = 'block';
                     
-                    requestWakeLock(); // HIER START DE WAKE LOCK
+                    requestWakeLock();
                     initScanner();
                 });
 
@@ -253,23 +231,15 @@
                     isPlaying = !state.paused;
                     const btn = document.getElementById('sdkPlayBtn');
                     const statusText = document.getElementById('player-status');
-                    
                     if (isPlaying) {
-                        btn.innerText = "⏸️"; 
-                        btn.classList.add('paused');
-                        statusText.innerText = "";
+                        btn.innerText = "⏸️"; btn.classList.add('paused'); statusText.innerText = "";
                     } else {
-                        btn.innerText = "▶️";
-                        btn.classList.remove('paused');
-                        statusText.innerText = "Gepauzeerd";
+                        btn.innerText = "▶️"; btn.classList.remove('paused'); statusText.innerText = "Gepauzeerd";
                     }
                 });
 
-                // Token refresh fix
                 player.addListener('authentication_error', () => { 
-                    console.warn("Token verlopen, opnieuw inloggen...");
-                    localStorage.removeItem('access_token'); 
-                    window.location.reload(); 
+                    localStorage.removeItem('access_token'); window.location.reload(); 
                 });
                 
                 player.connect();
@@ -287,33 +257,44 @@
 
         async function transferPlayback(id) {
             await fetch('https://api.spotify.com/v1/me/player', {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ "device_ids": [id], "play": false }) 
             });
         }
 
-        // --- 4. SCANNER LOGICA (VERBETERD) ---
+        // --- SCANNER LOGICA (DE HEILIGE GRAAL FIX) ---
         function initScanner() {
-            if(html5QrcodeScanner) return; // Als hij al draait, doe niks
+            if(html5QrcodeScanner) return; // Draait al
             isScanningLocked = false; 
 
             const config = { fps: 10, qrbox: 250, useBarCodeDetectorIfSupported: true, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
-            
-            const onScanFailure = (error) => {};
-
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
-            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            html5QrcodeScanner.render(onScanSuccess, (err) => {});
         }
 
-        function stopScanner() {
+        // DE GROTE TRUC: PAUZEER MAAR STOP NIET
+        function pauseScanner() {
             if (html5QrcodeScanner) {
-                html5QrcodeScanner.clear().then(() => {
-                    html5QrcodeScanner = null;
-                }).catch(err => {
-                    console.error("Kon scanner niet stoppen", err);
-                    html5QrcodeScanner = null;
-                });
+                // pause(false) = stop scanning, maar houd camera feed levend
+                try {
+                    html5QrcodeScanner.pause(false); 
+                } catch(e) {
+                    console.log("Kon niet pauzeren, negeer.");
+                }
+            }
+        }
+
+        function resumeScanner() {
+            if (html5QrcodeScanner) {
+                try {
+                    html5QrcodeScanner.resume();
+                } catch(e) {
+                    console.log("Resume mislukt, herstarten...");
+                    html5QrcodeScanner.clear().then(() => {
+                        html5QrcodeScanner = null;
+                        initScanner();
+                    });
+                }
             }
         }
 
@@ -321,27 +302,24 @@
             if (isScanningLocked) return;
 
             const id = parseInt(decodedText);
-            
             if (typeof songs === 'undefined') return;
-
             const foundSong = songs.find(s => s.id === id);
             
             if (foundSong) {
-                // --- SUCCES ---
+                // SUCCES
                 isScanningLocked = true;
                 currentSong = foundSong;
                 
-                // BELANGRIJK: STOP DE CAMERA NU. 
-                // Dit voorkomt permissie problemen als de telefoon slaapt.
-                stopScanner();
-                
-                // UI Wisselen
+                // 1. Zet scanner op pauze (Camera blijft AAN, maar stopt met rekenen)
+                pauseScanner();
+
+                // 2. Verberg de scanner interface (zodat het lijkt alsof hij weg is)
                 document.getElementById('app-section').style.display = 'none';
+                
+                // 3. Toon player controls
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
-                
-                const btn = document.getElementById('sdkPlayBtn');
-                btn.disabled = false;
+                document.getElementById('sdkPlayBtn').disabled = false;
                 
                 playCurrentSong();
             } else {
@@ -351,12 +329,12 @@
 
         function handleScanError(msg) {
             isScanningLocked = true;
-            
             const statusEl = document.getElementById('status');
             const originalText = "Richt je camera op een kaart";
 
             statusEl.innerText = "⚠️ " + msg;
             statusEl.classList.add('status-error'); 
+            if (navigator.vibrate) navigator.vibrate(200);
 
             setTimeout(() => {
                 statusEl.innerText = originalText;
@@ -366,17 +344,12 @@
         }
 
         async function togglePlayback() {
-            if (!isTrackLoaded) {
-                playCurrentSong();
-            } else {
-                if (spotifyPlayer) spotifyPlayer.togglePlay();
-            }
+            if (!isTrackLoaded) playCurrentSong();
+            else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
         async function playCurrentSong() {
-            const btn = document.getElementById('sdkPlayBtn');
             const status = document.getElementById('player-status');
-            
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
             
@@ -387,26 +360,20 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
                 });
 
-                // EXTRA CHECK: Is token verlopen tijdens het spelen?
                 if (res.status === 401) {
                     localStorage.removeItem('access_token');
                     window.location.reload();
                     return;
                 }
-
                 isTrackLoaded = true;
                 fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
-            } catch (e) {
-                console.error(e);
-                status.innerText = "Foutje.";
-            }
+            } catch (e) { console.error(e); status.innerText = "Foutje."; }
         }
 
         function resetScanner() {
-            // Stop muziek
             if(spotifyPlayer) spotifyPlayer.pause();
             
-            // UI Wisselen
+            // Switch UI terug
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             
@@ -416,11 +383,9 @@
             
             isTrackLoaded = false;
             
-            // NU PAS CAMERA OPNIEUW STARTEN
-            // Hierdoor vraagt hij 'vers' om beeld en loopt hij niet vast
-            setTimeout(() => {
-                initScanner();
-            }, 100);
+            // HERVAT DE CAMERA (Die stiekem nog aan stond)
+            isScanningLocked = false;
+            resumeScanner();
         }
 
         handleToken();
