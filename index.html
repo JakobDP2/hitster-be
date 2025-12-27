@@ -16,7 +16,7 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
             touch-action: manipulation; 
             display: flex; flex-direction: column; min-height: 100vh; margin: 0;
-            overflow: hidden; /* Voorkomt scrollen */
+            overflow: hidden; 
         }
         
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
@@ -41,7 +41,6 @@
         #reader img[alt="Info icon"] { display: none; } 
         #reader__dashboard_section_csr span, #reader__dashboard_section_swaplink { display: none !important; }
         
-        /* Permissie knop */
         #reader__dashboard_section_csr button {
             background-color: #1db954 !important; color: white !important; border: none !important;
             padding: 15px 30px !important; font-size: 1.1rem !important; font-weight: bold !important;
@@ -58,6 +57,8 @@
         }
 
         .found-text { font-size: 2rem; font-weight: bold; margin-bottom: 10px; color: #1db954; }
+        
+        /* ID ONZICHTBAAR */
         .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 40px; letter-spacing: 2px; }
 
         .big-play-btn {
@@ -82,6 +83,7 @@
             color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; 
             transition: all 0.2s ease;
             padding: 10px; border-radius: 8px;
+            min-height: 30px;
         }
 
         .status-error {
@@ -118,6 +120,7 @@
 
     <div id="controls">
         <div class="found-text">Gevonden!</div>
+        
         <div class="card-id-text" style="visibility: hidden;">KAART #<span id="song-id-display">0</span></div>
         
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn" disabled>▶️</button>
@@ -231,10 +234,16 @@
                     isPlaying = !state.paused;
                     const btn = document.getElementById('sdkPlayBtn');
                     const statusText = document.getElementById('player-status');
+                    
                     if (isPlaying) {
-                        btn.innerText = "⏸️"; btn.classList.add('paused'); statusText.innerText = "";
+                        btn.innerText = "⏸️"; 
+                        btn.classList.add('paused');
+                        statusText.innerText = "";
                     } else {
-                        btn.innerText = "▶️"; btn.classList.remove('paused'); statusText.innerText = "Gepauzeerd";
+                        btn.innerText = "▶️";
+                        btn.classList.remove('paused');
+                        // Alleen 'Gepauzeerd' tonen als we niet aan het laden zijn
+                        if (isTrackLoaded) statusText.innerText = "Gepauzeerd";
                     }
                 });
 
@@ -262,9 +271,9 @@
             });
         }
 
-        // --- SCANNER LOGICA (DE HEILIGE GRAAL FIX) ---
+        // --- SCANNER LOGICA ---
         function initScanner() {
-            if(html5QrcodeScanner) return; // Draait al
+            if(html5QrcodeScanner) return; 
             isScanningLocked = false; 
 
             const config = { fps: 10, qrbox: 250, useBarCodeDetectorIfSupported: true, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
@@ -272,28 +281,18 @@
             html5QrcodeScanner.render(onScanSuccess, (err) => {});
         }
 
-        // DE GROTE TRUC: PAUZEER MAAR STOP NIET
         function pauseScanner() {
             if (html5QrcodeScanner) {
-                // pause(false) = stop scanning, maar houd camera feed levend
-                try {
-                    html5QrcodeScanner.pause(false); 
-                } catch(e) {
-                    console.log("Kon niet pauzeren, negeer.");
-                }
+                try { html5QrcodeScanner.pause(false); } catch(e) { console.log("Pause error", e); }
             }
         }
 
         function resumeScanner() {
             if (html5QrcodeScanner) {
-                try {
-                    html5QrcodeScanner.resume();
-                } catch(e) {
-                    console.log("Resume mislukt, herstarten...");
-                    html5QrcodeScanner.clear().then(() => {
-                        html5QrcodeScanner = null;
-                        initScanner();
-                    });
+                try { 
+                    html5QrcodeScanner.resume(); 
+                } catch(e) { 
+                    html5QrcodeScanner.clear().then(() => { html5QrcodeScanner = null; initScanner(); }); 
                 }
             }
         }
@@ -310,13 +309,10 @@
                 isScanningLocked = true;
                 currentSong = foundSong;
                 
-                // 1. Zet scanner op pauze (Camera blijft AAN, maar stopt met rekenen)
+                // Pauzeer de camera (niet stoppen, maar pauzeren)
                 pauseScanner();
 
-                // 2. Verberg de scanner interface (zodat het lijkt alsof hij weg is)
                 document.getElementById('app-section').style.display = 'none';
-                
-                // 3. Toon player controls
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 document.getElementById('sdkPlayBtn').disabled = false;
@@ -348,61 +344,59 @@
             else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
-        // --- VOLUME TRUCJE ---
-        async function smartVolumeCheck() {
-            if (!currentSong || !currentSong.year) return;
-            
-            let targetVolume = 1.0; // Standaard 100%
-
-            // Oude nummers zijn vaak zacht, nieuwe hard.
-            // Dit is een grove schatting.
-            if (currentSong.year >= 2010) {
-                targetVolume = 0.6; // Heel modern = Hard = 60%
-            } else if (currentSong.year >= 1995) {
-                targetVolume = 0.75; // Jaren 90/00 = Redelijk hard = 75%
-            } else {
-                targetVolume = 1.0; // Oud = Zacht = 100%
-            }
-
-            if (spotifyPlayer) {
-                await spotifyPlayer.setVolume(targetVolume);
-                console.log(`Volume aangepast naar ${targetVolume * 100}% voor jaar ${currentSong.year}`);
-            }
-        }
-
+        // --- AFSPELEN MET NETWERK TIMEOUT ---
         async function playCurrentSong() {
             const status = document.getElementById('player-status');
+            const playBtn = document.getElementById('sdkPlayBtn');
+            
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
-            
-            try {
-                // EERST: Pas volume aan op basis van jaartal
-                await smartVolumeCheck();
+            playBtn.disabled = true; // Voorkom dubbelklikken
 
-                // DAN: Start nummer
+            // We gebruiken AbortController om de request na 3 seconden af te kappen
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
+
+            try {
+                // Geen volume check meer hier
+                
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                     method: 'PUT',
                     body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+                    signal: controller.signal // Koppel de timeout
                 });
+
+                (timeoutId); // Gelukt binnen de tijd!
 
                 if (res.status === 401) {
                     localStorage.removeItem('access_token');
                     window.location.reload();
                     return;
                 }
+                
                 isTrackLoaded = true;
-              
-            } catch (e) { 
-                console.error(e); 
-                status.innerText = "Foutje."; 
+                playBtn.disabled = false;
+
+                // Zet speler op actief
+                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
+
+            } catch (e) {
+                clearTimeout(timeoutId);
+                console.error(e);
+                
+                if (e.name === 'AbortError') {
+                    status.innerText = "⚠️ Timeout. Probeer opnieuw.";
+                } else {
+                    status.innerText = "Fout bij afspelen.";
+                }
+                playBtn.disabled = false; // Knop weer aanzetten zodat je nog eens kan klikken
             }
         }
 
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
             
-            // Switch UI terug
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             
@@ -412,7 +406,7 @@
             
             isTrackLoaded = false;
             
-            // HERVAT DE CAMERA (Die stiekem nog aan stond)
+            // Camera weer aanzetten
             isScanningLocked = false;
             resumeScanner();
         }
