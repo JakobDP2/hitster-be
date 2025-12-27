@@ -3,15 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hitster BE</title>
+    <title>Hitster BE DEV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
+        /* --- STYLES --- */
         body { background-color: #121212; color: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; touch-action: manipulation; display: flex; flex-direction: column; min-height: 100vh; margin: 0; overflow: hidden; }
+        
+        /* DEV HEADER */
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
-        .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); color: #1db954; }
 
         /* START SCHERM */
         #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #121212; z-index: 9998; display: none; flex-direction: column; justify-content: center; align-items: center; }
@@ -28,10 +31,12 @@
         .big-play-btn { width: 200px; height: 200px; border-radius: 50%; background-color: #1db954; border: none; color: white; font-size: 6rem; box-shadow: 0 0 60px rgba(29, 185, 84, 0.4); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; -webkit-tap-highlight-color: transparent; margin-bottom: 50px; }
         .big-play-btn:active { transform: scale(0.9); }
         .big-play-btn.paused { background-color: white; color: #1db954; box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }
+        
         .btn-next { background: #333; color: white; border: none; border-radius: 50px; padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; font-weight: bold; }
         .btn-next:active { background: #444; }
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
+        /* STATUS */
         .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; transition: all 0.2s ease; padding: 10px; border-radius: 8px; min-height: 30px; }
         .status-error { color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase; background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; box-shadow: 0 0 20px rgba(255, 0, 0, 0.4); animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
         @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
@@ -59,16 +64,33 @@
     </script>
 
     <script>
+        // ================= CONFIGURATIE =================
         const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; 
         const redirectUri = "https://jakobdp2.github.io/hitster-be/";
+        // ================================================
 
         let accessToken = null, deviceId = null, spotifyPlayer = null, html5QrCode = null;
         let currentSong = null, isTrackLoaded = false, isPlaying = false, isScanningLocked = false;
         let wakeLock = null, restoredSongId = sessionStorage.getItem('restore_song_id');
 
+        // 1. WAKE LOCK
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
         document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
 
+        // 2. NETWORK WATCHDOG (DE PRO FIX)
+        // Luistert continu: Zodra er een 'online' event komt (wifi->4g wissel), herlaad direct!
+        window.addEventListener('online', () => {
+            console.log("Netwerk wissel gedetecteerd! Preventieve herstart...");
+            performHardReload();
+        });
+        
+        window.addEventListener('offline', () => {
+            if(document.getElementById('controls').style.display === 'flex') {
+                document.getElementById('player-status').innerText = "⚠️ Geen internet...";
+            }
+        });
+
+        // 3. AUTHENTICATIE
         async function pkceLogin() {
             const generateRandomString = (length) => { const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; let text = ''; for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); } return text; };
             const generateCodeChallenge = async (codeVerifier) => { const data = new TextEncoder().encode(codeVerifier); const digest = await window.crypto.subtle.digest('SHA-256', data); return btoa(String.fromCharCode.apply(null, new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -97,6 +119,7 @@
 
         function startApp() { document.getElementById('login-section').style.display = 'none'; document.getElementById('loading-section').style.display = 'block'; initSpotifyPlayer(); }
 
+        // 4. SPELER INITIALISATIE
         function initSpotifyPlayer() {
             window.onSpotifyWebPlaybackSDKReady = () => {
                 if(spotifyPlayer) spotifyPlayer.disconnect();
@@ -107,20 +130,29 @@
                     deviceId = device_id;
                     document.getElementById('loading-section').style.display = 'none';
 
+                    // AUTO-HERSTEL LOGICA
                     if (restoredSongId) {
                         const id = parseInt(restoredSongId);
                         sessionStorage.removeItem('restore_song_id');
-                        if (typeof songs !== 'undefined') {
-                            const found = songs.find(s => s.id === id);
-                            if (found) {
-                                currentSong = found;
-                                document.getElementById('controls').style.display = 'flex';
-                                document.getElementById('song-id-display').innerText = id;
-                                transferPlayback(device_id, true);
-                                return;
+                        
+                        // Omdat songs.js misschien nog aan het laden is, wachten we even
+                        const checkSongs = setInterval(() => {
+                            if (typeof songs !== 'undefined') {
+                                clearInterval(checkSongs);
+                                const found = songs.find(s => s.id === id);
+                                if (found) {
+                                    currentSong = found;
+                                    document.getElementById('controls').style.display = 'flex';
+                                    document.getElementById('song-id-display').innerText = id;
+                                    document.getElementById('start-screen').style.display = 'none'; // Verberg startscherm
+                                    transferPlayback(device_id, true);
+                                }
                             }
-                        }
+                        }, 100);
+                        return;
                     }
+                    
+                    // NORMALE START
                     document.getElementById('start-screen').style.display = 'flex';
                     transferPlayback(device_id, false);
                 });
@@ -155,6 +187,7 @@
             if(autoPlay) setTimeout(() => playCurrentSong(false), 500);
         }
 
+        // 5. CAMERA & SCANNER
         function startCamera() {
             if (html5QrCode) return; isScanningLocked = false; html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -188,20 +221,26 @@
 
         async function togglePlayback() { if (!isTrackLoaded) playCurrentSong(true); else if (spotifyPlayer) spotifyPlayer.togglePlay(); }
 
+        // 6. HARDE REFRESH LOGICA
         function performHardReload() {
-            if (currentSong) {
-                sessionStorage.setItem('restore_song_id', currentSong.id);
-                document.getElementById('player-status').innerText = "Netwerk wissel... Herladen!";
+            // Sla alleen op als we al in een spel zitten
+            if (currentSong || document.getElementById('controls').style.display === 'flex') {
+                if(currentSong) sessionStorage.setItem('restore_song_id', currentSong.id);
+                console.log("Reloading due to network change or error...");
+                window.location.reload();
+            } else {
+                // Als we nog in de scanner zaten, gewoon reloaden zonder state
                 window.location.reload();
             }
         }
 
-        // DE AANGEPASTE AFPEEL FUNCTIE
+        // 7. ROBUUST AFSPELEN
         async function playCurrentSong(allowRetry) {
             const status = document.getElementById('player-status');
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
 
+            // Timeout van 3 seconden
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000); 
 
@@ -214,7 +253,7 @@
                 });
                 clearTimeout(timeoutId);
 
-                // DE NIEUWE CHECK: Als response NIET OK is (bijv. 404 Device Not Found), gooi error!
+                // Als response niet 2xx is (bijv 404 Device Not Found), is de socket dood
                 if (!res.ok) {
                     if (res.status === 401) { localStorage.removeItem('access_token'); window.location.reload(); return; }
                     throw new Error(`Spotify Error: ${res.status}`);
@@ -226,8 +265,10 @@
             } catch (e) {
                 clearTimeout(timeoutId);
                 console.error("Play error:", e);
-                // Trigger hard refresh bij elke fout tijdens het 'automatisch' afspelen
+                // BIJ ELKE ERROR -> HARD RELOAD
+                // We nemen geen risico meer. Werkt het niet? Opnieuw starten.
                 if (allowRetry) {
+                    document.getElementById('player-status').innerText = "Verbinding herstellen...";
                     performHardReload();
                 } else {
                     status.innerText = "Klik op Play ▶️";
