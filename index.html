@@ -9,33 +9,21 @@
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
-        /* --- 1. ALGEMENE STIJL --- */
-        body { 
-            background-color: #121212; 
-            color: white; 
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-            touch-action: manipulation; 
-            display: flex; flex-direction: column; min-height: 100vh; margin: 0;
-            overflow: hidden; 
-        }
-        
+        /* --- STYLES --- */
+        body { background-color: #121212; color: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; touch-action: manipulation; display: flex; flex-direction: column; min-height: 100vh; margin: 0; overflow: hidden; }
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
         .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
 
-        /* --- 2. START SCHERM --- */
+        /* START SCHERM */
         #start-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #121212; z-index: 9998;
-            display: none; /* Wordt getoond als speler klaar is */
-            flex-direction: column; justify-content: center; align-items: center;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
         }
-
         .btn-start {
-            background-color: #1db954; color: white; border: none; 
-            width: 200px; height: 200px; border-radius: 50%; 
+            background-color: #1db954; color: white; border: none; width: 200px; height: 200px; border-radius: 50%; 
             font-size: 1.5rem; font-weight: 800; text-transform: uppercase;
-            box-shadow: 0 0 50px rgba(29, 185, 84, 0.6);
-            animation: pulse 2s infinite;
+            box-shadow: 0 0 50px rgba(29, 185, 84, 0.6); animation: pulse 2s infinite;
         }
         @keyframes pulse {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.7); }
@@ -43,67 +31,39 @@
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
         }
 
-        /* --- 3. SCANNER STIJL --- */
-        #reader { 
-            width: 100%; 
-            max-width: 400px; 
-            margin: 0 auto; 
-            border-radius: 20px; 
-            overflow: hidden; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            background: #000;
-            min-height: 350px;
-            position: relative;
-            z-index: 1;
-        }
-        
+        /* SCANNER */
+        #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #000; min-height: 350px; position: relative; z-index: 1; }
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
         
-        /* --- 4. CONTROLS --- */
+        /* CONTROLS */
         #controls {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: #121212; z-index: 9999;
             display: none; flex-direction: column; justify-content: center; align-items: center;
             padding: 20px; box-sizing: border-box;
         }
-
         .found-text { font-size: 2rem; font-weight: bold; margin-bottom: 10px; color: #1db954; }
         .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 40px; letter-spacing: 2px; }
-
         .big-play-btn {
             width: 200px; height: 200px; border-radius: 50%; background-color: #1db954; border: none;
             color: white; font-size: 6rem; box-shadow: 0 0 60px rgba(29, 185, 84, 0.4);
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-            transition: all 0.2s; -webkit-tap-highlight-color: transparent; margin-bottom: 50px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; -webkit-tap-highlight-color: transparent; margin-bottom: 50px;
         }
         .big-play-btn:active { transform: scale(0.9); }
         .big-play-btn.paused { background-color: white; color: #1db954; box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }
         
-        .btn-next {
-            background: #333; color: white; border: none; border-radius: 50px; 
-            padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; font-weight: bold;
-        }
+        .btn-next { background: #333; color: white; border: none; border-radius: 50px; padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; font-weight: bold; }
         .btn-next:active { background: #444; }
-
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
-        /* --- 5. STATUS EN ERROR --- */
-        .status-text { 
-            color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; 
-            transition: all 0.2s ease;
-            padding: 10px; border-radius: 8px;
-            min-height: 30px;
-        }
-
+        /* STATUS */
+        .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; transition: all 0.2s ease; padding: 10px; border-radius: 8px; min-height: 30px; }
         .status-error {
             color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase;
             background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
             animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
         }
-
-        @keyframes shake {
-            10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); }
-        }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
     </style>
 </head>
 <body class="text-center">
@@ -124,7 +84,6 @@
 
     <div id="start-screen">
         <button class="btn-start" onclick="startGame()">START<br>SPEL</button>
-        <!-- <p class="status-text mt-4">Klaar om te spelen</p> -->
     </div>
 
     <div id="app-section" style="display:none;">
@@ -161,7 +120,9 @@
         let isPlaying = false;
         let isScanningLocked = false;
         let wakeLock = null;
-        let isRecovering = false;
+        
+        // NIEUW: Voor auto-herstel na refresh
+        let restoredSongId = sessionStorage.getItem('restore_song_id');
 
         // --- WAKE LOCK ---
         async function requestWakeLock() {
@@ -218,8 +179,6 @@
         function startApp() {
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
-            
-            // We initialiseren de speler alvast
             initSpotifyPlayer();
         }
 
@@ -233,22 +192,29 @@
                     console.log('Speler klaar! ID:', device_id);
                     deviceId = device_id;
                     
-                    // Verberg laadscherm
                     document.getElementById('loading-section').style.display = 'none';
 
-                    if (isRecovering && currentSong) {
-                        // Als we herstellen, direct spelen (want we hebben al eens geklikt)
-                        document.getElementById('player-status').innerText = "Hersteld! Starten...";
-                        isRecovering = false;
-                        transferPlayback(device_id, true);
-                    } else {
-                        // EERSTE KEER STARTEN: TOON START KNOP
-                        // Dit is essentieel voor de 'First Scan Play' fix
-                        document.getElementById('start-screen').style.display = 'flex';
+                    // LOGICA: Als we net herladen zijn door een crash, ga direct door
+                    if (restoredSongId) {
+                        const id = parseInt(restoredSongId);
+                        sessionStorage.removeItem('restore_song_id'); // Opruimen
                         
-                        // Verbind vast op achtergrond
-                        transferPlayback(device_id, false);
+                        // Zoek liedje op
+                        if (typeof songs !== 'undefined') {
+                            const found = songs.find(s => s.id === id);
+                            if (found) {
+                                currentSong = found;
+                                document.getElementById('controls').style.display = 'flex';
+                                document.getElementById('song-id-display').innerText = id;
+                                transferPlayback(device_id, true); // Direct spelen
+                                return; // Stop hier, toon geen startscherm
+                            }
+                        }
                     }
+
+                    // Normale start
+                    document.getElementById('start-screen').style.display = 'flex';
+                    transferPlayback(device_id, false);
                 });
 
                 player.addListener('player_state_changed', state => {
@@ -274,37 +240,17 @@
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
 
-        // DE GOUDEN KLIK FUNCTIE
         function startGame() {
-            // 1. Audio unlocken
             const audio = new Audio();
             audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
             audio.play().catch(e => {});
-            
-            if(spotifyPlayer) {
-                spotifyPlayer.activateElement().then(() => {
-                    console.log("Spotify Geactiveerd!");
-                });
-            }
+            if(spotifyPlayer) spotifyPlayer.activateElement();
 
-            // 2. Wake Lock
             requestWakeLock();
-
-            // 3. UI Wisselen
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
-
-            // 4. Camera starten
             startCamera();
         }
-
-        window.addEventListener('online', () => {
-            if (document.getElementById('controls').style.display === 'flex') {
-                document.getElementById('player-status').innerText = "Netwerk herstel... 🔄";
-            }
-            isRecovering = true;
-            initSpotifyPlayer();
-        });
 
         async function transferPlayback(id, autoPlay) {
             await fetch('https://api.spotify.com/v1/me/player', {
@@ -323,13 +269,13 @@
             
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => { })
             .catch(err => {
-                document.getElementById('status').innerText = "⚠️ Camera error. Refresh pagina.";
+                document.getElementById('status').innerText = "⚠️ Camera error.";
                 document.getElementById('status').classList.add('status-error');
             });
         }
 
         function pauseCamera() {
-            if (html5QrCode) { try { html5QrCode.pause(true); } catch(e) { console.log("Pause error", e); } }
+            if (html5QrCode) { try { html5QrCode.pause(true); } catch(e) {} }
         }
 
         function resumeCamera() {
@@ -348,14 +294,11 @@
             if (foundSong) {
                 isScanningLocked = true;
                 currentSong = foundSong;
-                
                 pauseCamera();
-
                 document.getElementById('app-section').style.display = 'none';
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 document.getElementById('sdkPlayBtn').disabled = false; 
-                
                 playCurrentSong(true);
             } else {
                 handleScanError("ONGELDIGE KAART!");
@@ -381,13 +324,24 @@
             else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
+        // --- DE HARDE REFRESH LOGICA ---
+        function performHardReload() {
+            if (currentSong) {
+                // Sla op waar we waren
+                sessionStorage.setItem('restore_song_id', currentSong.id);
+                document.getElementById('player-status').innerText = "Verbinding herstellen... (Even geduld)";
+                // Forceer reload
+                window.location.reload();
+            }
+        }
+
         async function playCurrentSong(allowRetry) {
             const status = document.getElementById('player-status');
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); 
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
 
             try {
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -408,10 +362,10 @@
 
             } catch (e) {
                 clearTimeout(timeoutId);
+                // Als het mislukt door timeout of netwerkfout:
                 if ((e.name === 'AbortError' || e.message.includes('Failed to fetch')) && allowRetry) {
-                    document.getElementById('player-status').innerText = "Herstellen...";
-                    isRecovering = true;
-                    initSpotifyPlayer();
+                    // NUCLEAR OPTION: HARD REFRESH
+                    performHardReload();
                 } else {
                     status.innerText = "Klik op Play ▶️";
                 }
@@ -420,17 +374,15 @@
 
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
-            
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
-            
             const btn = document.getElementById('sdkPlayBtn');
             btn.innerText = "▶️";
             btn.classList.remove('paused');
-            
             isTrackLoaded = false;
             isScanningLocked = false;
-            isRecovering = false;
+            // Ruim eventuele restore troep op
+            sessionStorage.removeItem('restore_song_id');
             resumeCamera();
         }
 
