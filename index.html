@@ -193,7 +193,6 @@
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
             
-            // Audio unlock triggers op alle mogelijke interacties
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
             
@@ -224,7 +223,6 @@
 
                 player.addListener('player_state_changed', state => {
                     if (!state) return;
-                    // Logica aangepast: als state.paused true is, is isPlaying false
                     isPlaying = !state.paused;
                     
                     const btn = document.getElementById('sdkPlayBtn');
@@ -258,13 +256,12 @@
             initSpotifyPlayer();
         });
 
-        // Verbeterde Audio Unlock
         function unlockAudio() {
             const audio = new Audio();
             audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; 
-            audio.play().catch(e => { console.log("Audio play fail (normaal)", e); });
+            audio.play().catch(e => { console.log("Audio play fail", e); });
             if(spotifyPlayer) {
-                spotifyPlayer.activateElement().catch(e => { console.log("Spotfy activate fail", e); });
+                spotifyPlayer.activateElement().catch(e => { console.log("Spotify activate fail", e); });
             }
         }
 
@@ -276,7 +273,7 @@
             if(autoPlay) setTimeout(() => playCurrentSong(false), 500);
         }
 
-        // --- CAMERA ---
+        // --- CAMERA LOGICA MET PAUZE FUNCTIE ---
         function startCamera() {
             if (html5QrCode) return; 
 
@@ -297,12 +294,25 @@
             });
         }
 
-        function stopCamera() {
+        // DE FIX: GEEN STOP, MAAR PAUZE
+        function pauseCamera() {
             if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    html5QrCode.clear();
-                    html5QrCode = null;
-                }).catch(err => { console.log("Stop failed", err); });
+                try {
+                    html5QrCode.pause(true); // true = stop ook de video rendering
+                } catch(e) {
+                    console.log("Pause error", e);
+                }
+            }
+        }
+
+        function resumeCamera() {
+            if (html5QrCode) {
+                try {
+                    html5QrCode.resume();
+                } catch (e) {
+                    console.log("Resume failed, restarting", e);
+                    html5QrCode.clear().then(() => { html5QrCode = null; startCamera(); });
+                }
             }
         }
 
@@ -315,13 +325,15 @@
             if (foundSong) {
                 isScanningLocked = true;
                 currentSong = foundSong;
-                stopCamera();
+                
+                // FIX: PAUZEER CAMERA IPV STOPPEN
+                pauseCamera();
 
                 document.getElementById('app-section').style.display = 'none';
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 
-                // DE GROTE FIX: ZORG DAT KNOP ALTIJD KLIKBAAR IS
+                // Knop altijd klikbaar
                 const btn = document.getElementById('sdkPlayBtn');
                 btn.disabled = false; 
                 
@@ -355,9 +367,6 @@
             const playBtn = document.getElementById('sdkPlayBtn');
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
-            
-            // WE BLOKKEREN DE KNOP NIET MEER!
-            // playBtn.disabled = true; <--- DEZE REGEL IS WEG!
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000); 
@@ -377,7 +386,6 @@
                     return;
                 }
                 isTrackLoaded = true;
-                // Volume check (gewoon om zeker te zijn dat ie actief wordt)
                 fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
 
             } catch (e) {
@@ -394,15 +402,20 @@
 
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
+            
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
+            
             const btn = document.getElementById('sdkPlayBtn');
             btn.innerText = "▶️";
             btn.classList.remove('paused');
+            
             isTrackLoaded = false;
             isScanningLocked = false;
             isRecovering = false;
-            setTimeout(startCamera, 100);
+            
+            // FIX: RESUME CAMERA IPV STARTEN
+            resumeCamera();
         }
 
         handleToken();
