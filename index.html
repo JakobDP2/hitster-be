@@ -147,9 +147,7 @@
         let isPlaying = false;
         let isScanningLocked = false;
         let wakeLock = null;
-        
-        // AUTO RECOVERY VARIABELEN
-        let isRecovering = false; // Zijn we bezig met herstellen?
+        let isRecovering = false;
 
         // --- WAKE LOCK ---
         async function requestWakeLock() {
@@ -205,7 +203,7 @@
             }
         }
 
-        // --- START APP & PLAYER INIT ---
+        // --- START APP ---
         function startApp() {
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
@@ -216,13 +214,9 @@
             initSpotifyPlayer();
         }
 
-        // SPELER INITIALISATIE
         function initSpotifyPlayer() {
             window.onSpotifyWebPlaybackSDKReady = () => {
-                if(spotifyPlayer) {
-                    // Oude speler slopen
-                    spotifyPlayer.disconnect();
-                }
+                if(spotifyPlayer) { spotifyPlayer.disconnect(); }
 
                 const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
 
@@ -230,11 +224,10 @@
                     console.log('Speler klaar! ID:', device_id);
                     deviceId = device_id;
                     
-                    // Als we aan het herstellen zijn, speel direct het nummer
                     if (isRecovering && currentSong) {
                         document.getElementById('player-status').innerText = "Hersteld! Starten...";
                         isRecovering = false;
-                        transferPlayback(device_id, true); // True = direct spelen
+                        transferPlayback(device_id, true);
                     } else {
                         transferPlayback(device_id, false);
                         document.getElementById('loading-section').style.display = 'none';
@@ -263,9 +256,18 @@
                 player.connect();
                 spotifyPlayer = player;
             };
-            
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
+
+        // NETWERK WISSEL DETECTIE
+        window.addEventListener('online', () => {
+            console.log("Netwerk wissel gedetecteerd.");
+            if (document.getElementById('controls').style.display === 'flex') {
+                document.getElementById('player-status').innerText = "Netwerk wissel... Herstarten 🔄";
+            }
+            isRecovering = true;
+            initSpotifyPlayer();
+        });
 
         function unlockAudio() {
             const audio = new Audio();
@@ -279,17 +281,24 @@
                 method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ "device_ids": [id], "play": false }) 
             });
-            
-            if(autoPlay) {
-                setTimeout(() => playCurrentSong(false), 500); // Korte vertraging en dan spelen
-            }
+            if(autoPlay) { setTimeout(() => playCurrentSong(false), 500); }
         }
 
-        // --- SCANNER LOGICA ---
+        // --- SCANNER LOGICA (ANDROID FIX HIER!) ---
         function initScanner() {
             if(html5QrcodeScanner) return; 
             isScanningLocked = false; 
-            const config = { fps: 10, qrbox: 250, useBarCodeDetectorIfSupported: true, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
+
+            // ANDROID FIX: ZET BARCODE DETECTOR UIT EN SPECIFIEER FACINGMODE
+            const config = { 
+                fps: 10, 
+                qrbox: 250, 
+                useBarCodeDetectorIfSupported: false, // <--- DIT IS DE FIX VOOR ANDROID ZWART SCHERM
+                videoConstraints: {
+                    facingMode: "environment" // Forceer achtercamera
+                }
+            };
+            
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
             html5QrcodeScanner.render(onScanSuccess, (err) => {});
         }
@@ -316,7 +325,7 @@
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 document.getElementById('sdkPlayBtn').disabled = false;
-                playCurrentSong(true); // True = activeer retry logica
+                playCurrentSong(true);
             } else {
                 handleScanError("ONGELDIGE KAART!");
             }
@@ -341,14 +350,7 @@
             else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
-        // --- DE GROTE HERSTEL TRUC ---
-        function recoverConnection() {
-            console.log("Start herstelprocedure...");
-            document.getElementById('player-status').innerText = "Netwerk wissel... Even herstarten 🔄";
-            isRecovering = true;
-            initSpotifyPlayer(); // Dit reset de hele speler en triggert 'ready' opnieuw
-        }
-
+        // --- AFSPELEN MET TIMEOUT ---
         async function playCurrentSong(allowRetry) {
             const status = document.getElementById('player-status');
             const playBtn = document.getElementById('sdkPlayBtn');
@@ -358,7 +360,7 @@
             playBtn.disabled = true;
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
+            const timeoutId = setTimeout(() => controller.abort(), 3000); 
 
             try {
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -385,8 +387,10 @@
                 console.error(e);
                 
                 if ((e.name === 'AbortError' || e.message.includes('Failed to fetch')) && allowRetry) {
-                    // HIER GEBEURT DE MAGIE
-                    recoverConnection();
+                    // Netwerkfout? Probeer speler te herstellen
+                    document.getElementById('player-status').innerText = "Verbinding herstellen...";
+                    isRecovering = true;
+                    initSpotifyPlayer();
                 } else {
                     status.innerText = "⚠️ Fout. Probeer opnieuw.";
                     playBtn.disabled = false;
@@ -403,7 +407,7 @@
             btn.classList.remove('paused');
             isTrackLoaded = false;
             isScanningLocked = false;
-            isRecovering = false; // Reset recovery
+            isRecovering = false;
             resumeScanner();
         }
 
