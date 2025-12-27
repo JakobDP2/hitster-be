@@ -110,7 +110,7 @@
 
     <div id="loading-section" style="display:none; margin-top: 100px;">
         <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
-        <p class="status-text">Speler verbinden...</p>
+        <p class="status-text" id="loading-text">Speler verbinden...</p>
     </div>
 
     <div id="app-section" style="display:none;">
@@ -120,12 +120,9 @@
 
     <div id="controls">
         <div class="found-text">Gevonden!</div>
-        
         <div class="card-id-text" style="visibility: hidden;">KAART #<span id="song-id-display">0</span></div>
-        
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn" disabled>▶️</button>
         <p class="status-text" id="player-status">Laden...</p>
-
         <button onclick="resetScanner()" class="btn-next">Volgende Kaart</button>
     </div>
 
@@ -137,8 +134,8 @@
 
     <script>
         // ================= CONFIGURATIE =================
-        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; // JOUW ID
-        const redirectUri = "https://jakobdp2.github.io/hitster-be/"; // JOUW URL
+        const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; 
+        const redirectUri = "https://jakobdp2.github.io/hitster-be/";
         // ================================================
 
         let accessToken = null;
@@ -151,12 +148,11 @@
         let isScanningLocked = false;
         let wakeLock = null;
 
-        // --- WAKE LOCK (SLAAPSTAND BLOKKEREN) ---
+        // --- WAKE LOCK ---
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock actief');
                 }
             } catch (err) { console.error(`Wake Lock error: ${err.message}`); }
         }
@@ -206,7 +202,7 @@
             }
         }
 
-        // --- START APP ---
+        // --- START APP & PLAYER INIT ---
         function startApp() {
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('loading-section').style.display = 'block';
@@ -214,11 +210,20 @@
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
 
+            initSpotifyPlayer(); // Initialiseer de speler
+        }
+
+        // NIEUWE FUNCTIE: Deze maakt de speler aan. We kunnen deze OPNIEUW aanroepen als de verbinding verbreekt.
+        function initSpotifyPlayer() {
             window.onSpotifyWebPlaybackSDKReady = () => {
+                if(spotifyPlayer) {
+                    spotifyPlayer.disconnect(); // Oude verbinding verbreken indien aanwezig
+                }
+
                 const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
 
                 player.addListener('ready', ({ device_id }) => {
-                    console.log('Ready with Device ID', device_id);
+                    console.log('Speler klaar! ID:', device_id);
                     deviceId = device_id;
                     transferPlayback(device_id); 
                     
@@ -234,16 +239,10 @@
                     isPlaying = !state.paused;
                     const btn = document.getElementById('sdkPlayBtn');
                     const statusText = document.getElementById('player-status');
-                    
                     if (isPlaying) {
-                        btn.innerText = "⏸️"; 
-                        btn.classList.add('paused');
-                        statusText.innerText = "";
+                        btn.innerText = "⏸️"; btn.classList.add('paused'); statusText.innerText = "";
                     } else {
-                        btn.innerText = "▶️";
-                        btn.classList.remove('paused');
-                        // Alleen 'Gepauzeerd' tonen als we niet aan het laden zijn
-                        if (isTrackLoaded) statusText.innerText = "Gepauzeerd";
+                        btn.innerText = "▶️"; btn.classList.remove('paused'); if(isTrackLoaded) statusText.innerText = "Gepauzeerd";
                     }
                 });
 
@@ -254,8 +253,23 @@
                 player.connect();
                 spotifyPlayer = player;
             };
+            
+            // Als SDK al geladen is, direct uitvoeren
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
+
+        // --- DETECTEER NETWERK WISSEL (WIFI <-> 4G) ---
+        window.addEventListener('online', () => {
+            console.log("Netwerk hersteld (Wifi/4G switch). Speler herstarten...");
+            
+            // Toon even een laadschermpje of update in status
+            if (document.getElementById('controls').style.display === 'flex') {
+                document.getElementById('player-status').innerText = "Netwerk wissel... Speler herstarten.";
+            }
+            
+            // HERSTART DE SPELER (Dit zorgt voor een frisse verbinding op het nieuwe IP)
+            initSpotifyPlayer();
+        });
 
         function unlockAudio() {
             const audio = new Audio();
@@ -275,48 +289,33 @@
         function initScanner() {
             if(html5QrcodeScanner) return; 
             isScanningLocked = false; 
-
             const config = { fps: 10, qrbox: 250, useBarCodeDetectorIfSupported: true, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
             html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
             html5QrcodeScanner.render(onScanSuccess, (err) => {});
         }
 
         function pauseScanner() {
-            if (html5QrcodeScanner) {
-                try { html5QrcodeScanner.pause(false); } catch(e) { console.log("Pause error", e); }
-            }
+            if (html5QrcodeScanner) { try { html5QrcodeScanner.pause(false); } catch(e) {} }
         }
 
         function resumeScanner() {
-            if (html5QrcodeScanner) {
-                try { 
-                    html5QrcodeScanner.resume(); 
-                } catch(e) { 
-                    html5QrcodeScanner.clear().then(() => { html5QrcodeScanner = null; initScanner(); }); 
-                }
-            }
+            if (html5QrcodeScanner) { try { html5QrcodeScanner.resume(); } catch(e) { html5QrcodeScanner.clear().then(() => { html5QrcodeScanner = null; initScanner(); }); } }
         }
 
         function onScanSuccess(decodedText) {
             if (isScanningLocked) return;
-
             const id = parseInt(decodedText);
             if (typeof songs === 'undefined') return;
             const foundSong = songs.find(s => s.id === id);
             
             if (foundSong) {
-                // SUCCES
                 isScanningLocked = true;
                 currentSong = foundSong;
-                
-                // Pauzeer de camera (niet stoppen, maar pauzeren)
                 pauseScanner();
-
                 document.getElementById('app-section').style.display = 'none';
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 document.getElementById('sdkPlayBtn').disabled = false;
-                
                 playCurrentSong();
             } else {
                 handleScanError("ONGELDIGE KAART!");
@@ -327,11 +326,9 @@
             isScanningLocked = true;
             const statusEl = document.getElementById('status');
             const originalText = "Richt je camera op een kaart";
-
             statusEl.innerText = "⚠️ " + msg;
             statusEl.classList.add('status-error'); 
             if (navigator.vibrate) navigator.vibrate(200);
-
             setTimeout(() => {
                 statusEl.innerText = originalText;
                 statusEl.classList.remove('status-error'); 
@@ -344,30 +341,27 @@
             else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
-        // --- AFSPELEN MET NETWERK TIMEOUT ---
+        // --- AFSPELEN MET TIMEOUT & AUTO-RECOVERY ---
         async function playCurrentSong() {
             const status = document.getElementById('player-status');
             const playBtn = document.getElementById('sdkPlayBtn');
             
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
             status.innerText = "Laden...";
-            playBtn.disabled = true; // Voorkom dubbelklikken
+            playBtn.disabled = true;
 
-            // We gebruiken AbortController om de request na 3 seconden af te kappen
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 SEC TIMEOUT
 
             try {
-                // Geen volume check meer hier
-                
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
                     method: 'PUT',
                     body: JSON.stringify({ uris: [`spotify:track:${currentSong.uri}`] }),
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-                    signal: controller.signal // Koppel de timeout
+                    signal: controller.signal
                 });
 
-                (timeoutId); // Gelukt binnen de tijd!
+                clearTimeout(timeoutId);
 
                 if (res.status === 401) {
                     localStorage.removeItem('access_token');
@@ -377,8 +371,6 @@
                 
                 isTrackLoaded = true;
                 playBtn.disabled = false;
-
-                // Zet speler op actief
                 fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
 
             } catch (e) {
@@ -386,27 +378,26 @@
                 console.error(e);
                 
                 if (e.name === 'AbortError') {
-                    status.innerText = "⚠️ Timeout. Probeer opnieuw.";
+                    // TIMEOUT: NETWERK IS WAARSCHIJNLIJK GEWISSELD
+                    status.innerText = "⚠️ Netwerk wissel? Herstarten...";
+                    // Probeer de speler te herstarten en daarna opnieuw te spelen
+                    initSpotifyPlayer();
+                    
                 } else {
                     status.innerText = "Fout bij afspelen.";
                 }
-                playBtn.disabled = false; // Knop weer aanzetten zodat je nog eens kan klikken
+                playBtn.disabled = false;
             }
         }
 
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
-            
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
-            
             const btn = document.getElementById('sdkPlayBtn');
             btn.innerText = "▶️";
             btn.classList.remove('paused');
-            
             isTrackLoaded = false;
-            
-            // Camera weer aanzetten
             isScanningLocked = false;
             resumeScanner();
         }
