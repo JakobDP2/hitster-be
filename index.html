@@ -147,6 +147,9 @@
         let isPlaying = false;
         let isScanningLocked = false;
         let wakeLock = null;
+        
+        // AUTO RECOVERY VARIABELEN
+        let isRecovering = false; // Zijn we bezig met herstellen?
 
         // --- WAKE LOCK ---
         async function requestWakeLock() {
@@ -210,14 +213,15 @@
             document.body.addEventListener('touchstart', unlockAudio, { once: true });
             document.body.addEventListener('click', unlockAudio, { once: true });
 
-            initSpotifyPlayer(); // Initialiseer de speler
+            initSpotifyPlayer();
         }
 
-        // NIEUWE FUNCTIE: Deze maakt de speler aan. We kunnen deze OPNIEUW aanroepen als de verbinding verbreekt.
+        // SPELER INITIALISATIE
         function initSpotifyPlayer() {
             window.onSpotifyWebPlaybackSDKReady = () => {
                 if(spotifyPlayer) {
-                    spotifyPlayer.disconnect(); // Oude verbinding verbreken indien aanwezig
+                    // Oude speler slopen
+                    spotifyPlayer.disconnect();
                 }
 
                 const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
@@ -225,13 +229,19 @@
                 player.addListener('ready', ({ device_id }) => {
                     console.log('Speler klaar! ID:', device_id);
                     deviceId = device_id;
-                    transferPlayback(device_id); 
                     
-                    document.getElementById('loading-section').style.display = 'none';
-                    document.getElementById('app-section').style.display = 'block';
-                    
-                    requestWakeLock();
-                    initScanner();
+                    // Als we aan het herstellen zijn, speel direct het nummer
+                    if (isRecovering && currentSong) {
+                        document.getElementById('player-status').innerText = "Hersteld! Starten...";
+                        isRecovering = false;
+                        transferPlayback(device_id, true); // True = direct spelen
+                    } else {
+                        transferPlayback(device_id, false);
+                        document.getElementById('loading-section').style.display = 'none';
+                        document.getElementById('app-section').style.display = 'block';
+                        requestWakeLock();
+                        initScanner();
+                    }
                 });
 
                 player.addListener('player_state_changed', state => {
@@ -254,22 +264,8 @@
                 spotifyPlayer = player;
             };
             
-            // Als SDK al geladen is, direct uitvoeren
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
-
-        // --- DETECTEER NETWERK WISSEL (WIFI <-> 4G) ---
-        window.addEventListener('online', () => {
-            console.log("Netwerk hersteld (Wifi/4G switch). Speler herstarten...");
-            
-            // Toon even een laadschermpje of update in status
-            if (document.getElementById('controls').style.display === 'flex') {
-                document.getElementById('player-status').innerText = "Netwerk wissel... Speler herstarten.";
-            }
-            
-            // HERSTART DE SPELER (Dit zorgt voor een frisse verbinding op het nieuwe IP)
-            initSpotifyPlayer();
-        });
 
         function unlockAudio() {
             const audio = new Audio();
@@ -278,11 +274,15 @@
             if(spotifyPlayer) spotifyPlayer.activateElement(); 
         }
 
-        async function transferPlayback(id) {
+        async function transferPlayback(id, autoPlay) {
             await fetch('https://api.spotify.com/v1/me/player', {
                 method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ "device_ids": [id], "play": false }) 
             });
+            
+            if(autoPlay) {
+                setTimeout(() => playCurrentSong(false), 500); // Korte vertraging en dan spelen
+            }
         }
 
         // --- SCANNER LOGICA ---
@@ -316,7 +316,7 @@
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 document.getElementById('sdkPlayBtn').disabled = false;
-                playCurrentSong();
+                playCurrentSong(true); // True = activeer retry logica
             } else {
                 handleScanError("ONGELDIGE KAART!");
             }
@@ -337,12 +337,19 @@
         }
 
         async function togglePlayback() {
-            if (!isTrackLoaded) playCurrentSong();
+            if (!isTrackLoaded) playCurrentSong(true);
             else if (spotifyPlayer) spotifyPlayer.togglePlay();
         }
 
-        // --- AFSPELEN MET TIMEOUT & AUTO-RECOVERY ---
-        async function playCurrentSong() {
+        // --- DE GROTE HERSTEL TRUC ---
+        function recoverConnection() {
+            console.log("Start herstelprocedure...");
+            document.getElementById('player-status').innerText = "Netwerk wissel... Even herstarten 🔄";
+            isRecovering = true;
+            initSpotifyPlayer(); // Dit reset de hele speler en triggert 'ready' opnieuw
+        }
+
+        async function playCurrentSong(allowRetry) {
             const status = document.getElementById('player-status');
             const playBtn = document.getElementById('sdkPlayBtn');
             
@@ -351,7 +358,7 @@
             playBtn.disabled = true;
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 SEC TIMEOUT
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
 
             try {
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -377,16 +384,13 @@
                 clearTimeout(timeoutId);
                 console.error(e);
                 
-                if (e.name === 'AbortError') {
-                    // TIMEOUT: NETWERK IS WAARSCHIJNLIJK GEWISSELD
-                    status.innerText = "⚠️ Netwerk wissel? Herstarten...";
-                    // Probeer de speler te herstarten en daarna opnieuw te spelen
-                    initSpotifyPlayer();
-                    
+                if ((e.name === 'AbortError' || e.message.includes('Failed to fetch')) && allowRetry) {
+                    // HIER GEBEURT DE MAGIE
+                    recoverConnection();
                 } else {
-                    status.innerText = "Fout bij afspelen.";
+                    status.innerText = "⚠️ Fout. Probeer opnieuw.";
+                    playBtn.disabled = false;
                 }
-                playBtn.disabled = false;
             }
         }
 
@@ -399,6 +403,7 @@
             btn.classList.remove('paused');
             isTrackLoaded = false;
             isScanningLocked = false;
+            isRecovering = false; // Reset recovery
             resumeScanner();
         }
 
