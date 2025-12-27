@@ -12,7 +12,6 @@
         /* --- STYLES --- */
         body { background-color: #121212; color: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; touch-action: manipulation; display: flex; flex-direction: column; min-height: 100vh; margin: 0; overflow: hidden; }
         
-        /* DEV HEADER */
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
         .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); color: #1db954; }
 
@@ -36,7 +35,6 @@
         .btn-next:active { background: #444; }
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
-        /* STATUS */
         .status-text { color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; transition: all 0.2s ease; padding: 10px; border-radius: 8px; min-height: 30px; }
         .status-error { color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase; background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; box-shadow: 0 0 20px rgba(255, 0, 0, 0.4); animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
         @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
@@ -71,26 +69,14 @@
 
         let accessToken = null, deviceId = null, spotifyPlayer = null, html5QrCode = null;
         let currentSong = null, isTrackLoaded = false, isPlaying = false, isScanningLocked = false;
-        let wakeLock = null, restoredSongId = sessionStorage.getItem('restore_song_id');
+        let wakeLock = null;
+        
+        // RECOVERY VLAG
+        let isRecovering = false;
 
-        // 1. WAKE LOCK
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
         document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
 
-        // 2. NETWORK WATCHDOG (DE PRO FIX)
-        // Luistert continu: Zodra er een 'online' event komt (wifi->4g wissel), herlaad direct!
-        window.addEventListener('online', () => {
-            console.log("Netwerk wissel gedetecteerd! Preventieve herstart...");
-            performHardReload();
-        });
-        
-        window.addEventListener('offline', () => {
-            if(document.getElementById('controls').style.display === 'flex') {
-                document.getElementById('player-status').innerText = "⚠️ Geen internet...";
-            }
-        });
-
-        // 3. AUTHENTICATIE
         async function pkceLogin() {
             const generateRandomString = (length) => { const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; let text = ''; for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); } return text; };
             const generateCodeChallenge = async (codeVerifier) => { const data = new TextEncoder().encode(codeVerifier); const digest = await window.crypto.subtle.digest('SHA-256', data); return btoa(String.fromCharCode.apply(null, new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -119,10 +105,15 @@
 
         function startApp() { document.getElementById('login-section').style.display = 'none'; document.getElementById('loading-section').style.display = 'block'; initSpotifyPlayer(); }
 
-        // 4. SPELER INITIALISATIE
+        // --- SPELER LOGICA MET SOFT RECOVERY ---
         function initSpotifyPlayer() {
+            // Als we deze functie aanroepen tijdens recovery, verbreken we eerst de oude
+            if(window.Spotify && spotifyPlayer) {
+                console.log("Oude speler verbreken...");
+                spotifyPlayer.disconnect();
+            }
+
             window.onSpotifyWebPlaybackSDKReady = () => {
-                if(spotifyPlayer) spotifyPlayer.disconnect();
                 const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
 
                 player.addListener('ready', ({ device_id }) => {
@@ -130,31 +121,16 @@
                     deviceId = device_id;
                     document.getElementById('loading-section').style.display = 'none';
 
-                    // AUTO-HERSTEL LOGICA
-                    if (restoredSongId) {
-                        const id = parseInt(restoredSongId);
-                        sessionStorage.removeItem('restore_song_id');
-                        
-                        // Omdat songs.js misschien nog aan het laden is, wachten we even
-                        const checkSongs = setInterval(() => {
-                            if (typeof songs !== 'undefined') {
-                                clearInterval(checkSongs);
-                                const found = songs.find(s => s.id === id);
-                                if (found) {
-                                    currentSong = found;
-                                    document.getElementById('controls').style.display = 'flex';
-                                    document.getElementById('song-id-display').innerText = id;
-                                    document.getElementById('start-screen').style.display = 'none'; // Verberg startscherm
-                                    transferPlayback(device_id, true);
-                                }
-                            }
-                        }, 100);
-                        return;
+                    // ALS WE AAN HET HERSTELLEN ZIJN: Direct spelen!
+                    if (isRecovering && currentSong) {
+                        document.getElementById('player-status').innerText = "Verbinding hersteld. Starten...";
+                        transferPlayback(device_id, true); // True = Autoplay
+                        isRecovering = false; // Reset vlag
+                    } else {
+                        // NORMALE START
+                        document.getElementById('start-screen').style.display = 'flex';
+                        transferPlayback(device_id, false);
                     }
-                    
-                    // NORMALE START
-                    document.getElementById('start-screen').style.display = 'flex';
-                    transferPlayback(device_id, false);
                 });
 
                 player.addListener('player_state_changed', state => {
@@ -173,6 +149,15 @@
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
 
+        function recoverConnection() {
+            if(isRecovering) return; // Niet dubbel doen
+            isRecovering = true;
+            document.getElementById('player-status').innerText = "Netwerk herstellen... 🔄";
+            
+            // Initialiseer de speler volledig opnieuw ZONDER pagina reload
+            initSpotifyPlayer();
+        }
+
         function startGame() {
             const audio = new Audio(); audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; audio.play().catch(e => {});
             if(spotifyPlayer) spotifyPlayer.activateElement();
@@ -187,7 +172,6 @@
             if(autoPlay) setTimeout(() => playCurrentSong(false), 500);
         }
 
-        // 5. CAMERA & SCANNER
         function startCamera() {
             if (html5QrCode) return; isScanningLocked = false; html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -221,20 +205,7 @@
 
         async function togglePlayback() { if (!isTrackLoaded) playCurrentSong(true); else if (spotifyPlayer) spotifyPlayer.togglePlay(); }
 
-        // 6. HARDE REFRESH LOGICA
-        function performHardReload() {
-            // Sla alleen op als we al in een spel zitten
-            if (currentSong || document.getElementById('controls').style.display === 'flex') {
-                if(currentSong) sessionStorage.setItem('restore_song_id', currentSong.id);
-                console.log("Reloading due to network change or error...");
-                window.location.reload();
-            } else {
-                // Als we nog in de scanner zaten, gewoon reloaden zonder state
-                window.location.reload();
-            }
-        }
-
-        // 7. ROBUUST AFSPELEN
+        // --- PLAY FUNCTIE MET SOFT RECOVERY ---
         async function playCurrentSong(allowRetry) {
             const status = document.getElementById('player-status');
             if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
@@ -253,7 +224,7 @@
                 });
                 clearTimeout(timeoutId);
 
-                // Als response niet 2xx is (bijv 404 Device Not Found), is de socket dood
+                // Check op errors (zoals 404 als device ID verouderd is door netwerkwissel)
                 if (!res.ok) {
                     if (res.status === 401) { localStorage.removeItem('access_token'); window.location.reload(); return; }
                     throw new Error(`Spotify Error: ${res.status}`);
@@ -265,11 +236,10 @@
             } catch (e) {
                 clearTimeout(timeoutId);
                 console.error("Play error:", e);
-                // BIJ ELKE ERROR -> HARD RELOAD
-                // We nemen geen risico meer. Werkt het niet? Opnieuw starten.
+                
+                // BIJ ERROR: Soft Recovery (Nieuwe speler maken zonder reload)
                 if (allowRetry) {
-                    document.getElementById('player-status').innerText = "Verbinding herstellen...";
-                    performHardReload();
+                    recoverConnection();
                 } else {
                     status.innerText = "Klik op Play ▶️";
                 }
@@ -281,7 +251,8 @@
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             const btn = document.getElementById('sdkPlayBtn'); btn.innerText = "▶️"; btn.classList.remove('paused');
-            isTrackLoaded = false; isScanningLocked = false; sessionStorage.removeItem('restore_song_id');
+            isTrackLoaded = false; isScanningLocked = false; 
+            isRecovering = false; // Zeker weten dat we niet meer in recovery mode zitten
             resumeCamera();
         }
 
