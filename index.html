@@ -71,8 +71,8 @@
         }
 
         .status-normal { background-color: transparent; }
-        .status-warning { background-color: #ff9800; color: #000; box-shadow: 0 0 15px rgba(255, 152, 0, 0.4); animation: pulse-warning 2s infinite; }
-        .status-error { background-color: #f44336; color: white; box-shadow: 0 0 15px rgba(244, 67, 54, 0.4); } /* Rood */
+        .status-warning { background-color: #ff9800; color: #000; box-shadow: 0 0 15px rgba(255, 152, 0, 0.4); animation: pulse-warning 2s infinite; } /* Oranje: Waarschuwing (Geen internet) */
+        .status-error { background-color: #f44336; color: white; box-shadow: 0 0 15px rgba(244, 67, 54, 0.4); } /* Rood: FATAL (Refresh nodig) */
 
         @keyframes pulse-warning { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
 
@@ -132,10 +132,27 @@
         let currentSong = null, isTrackLoaded = false, isPlaying = false, isScanningLocked = false;
         let wakeLock = null;
         let hasGameStarted = false;
-        let watchdogTimer = null; 
+        let isOfflineMode = false;
+        let watchdogTimer = null; // De Timer
+
+        // Auto-refresh na 2 min inactiviteit
+        let lastVisibilityChange = Date.now();
 
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
-        document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
+        
+        document.addEventListener('visibilitychange', async () => { 
+            if (document.visibilityState === 'visible') {
+                const now = Date.now();
+                if (now - lastVisibilityChange > 120000) { 
+                    window.location.reload(); // Harde reset als we lang weg waren
+                    return;
+                }
+                requestWakeLock();
+                lastVisibilityChange = now;
+            } else {
+                lastVisibilityChange = Date.now();
+            }
+        });
 
         // --- AUTH ---
         async function pkceLogin() {
@@ -174,11 +191,11 @@
             text.innerText = msg;
             box.className = ''; 
             
-            if (type === 'error') {
-                box.classList.add('status-error'); // Rood!
-            } else if (type === 'warning') {
+            if (type === 'error') { // FATAL ERROR (ROOD)
+                box.classList.add('status-error'); 
+            } else if (type === 'warning') { // WAARSCHUWING (ORANJE)
                 box.classList.add('status-warning');
-            } else {
+            } else { // NORMAAL (TRANSPARANT)
                 box.classList.add('status-normal'); 
             }
         }
@@ -198,53 +215,57 @@
 
         function updateUIState(playing) {
             const btn = document.getElementById('sdkPlayBtn');
+            // Alleen UI updaten als we NIET in fatal error mode zitten
+            const box = document.getElementById('status-box');
+            if (box.classList.contains('status-error')) return;
+
             if (playing) { 
                 btn.innerText = "⏸️"; btn.classList.add('paused'); 
-                setStatusMessage("", 'normal'); 
+                if(!isOfflineMode) setStatusMessage("", 'normal'); 
             } else { 
                 btn.innerText = "▶️"; btn.classList.remove('paused'); 
-                if(isTrackLoaded) setStatusMessage("Gepauzeerd", 'normal'); 
+                if(isTrackLoaded && !isOfflineMode) setStatusMessage("Gepauzeerd", 'normal'); 
             }
         }
 
         // --- FATAL ERROR STATE ---
         function triggerFatalError() {
-            setStatusMessage("HERLAAD DE PAGINA ↻", 'error');
-            disableControls(true);
+            setStatusMessage("HERLAAD DE PAGINA ↻", 'error'); // ROOD
+            disableControls(true); // Alles op slot
+            // Eventueel watchdog stoppen om dubbele triggers te voorkomen
+            if(watchdogTimer) clearTimeout(watchdogTimer);
         }
 
-        // --- NETWORK & VISIBILITY HANDLERS ---
+        // --- NETWORK HANDLERS (TERUG NAAR DE BASIS) ---
         window.addEventListener('offline', () => {
             log("Netwerk verloren...");
+            isOfflineMode = true; 
             if(document.getElementById('controls').style.display === 'flex') {
-                // Direct blokkeren
-                triggerFatalError();
+                // GEWOON WAARSCHUWEN (ORANJE), NIET CRASHEN
+                setStatusMessage("⚠️ GEEN INTERNET", 'warning');
+                disableControls(true);
             }
         });
 
         window.addEventListener('online', () => {
-            log("Netwerk terug (maar we vertrouwen het niet)");
-            if(hasGameStarted) {
-                // We geven geen valse hoop meer. Netwerk weg = refresh nodig.
-                triggerFatalError();
-            }
-        });
-        
-        // Extra check voor als app uit achtergrond komt
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && hasGameStarted) {
-                // Controleer of Spotify nog leeft. Zo niet (of twijfel) -> Fatal Error
-                if(!deviceId) {
-                    triggerFatalError();
-                }
+            log("Netwerk terug!");
+            isOfflineMode = false;
+            // Knoppen terug open, maar we doen verder niks bijzonders
+            disableControls(false);
+
+            if(hasGameStarted && spotifyPlayer) {
+                setStatusMessage("Verbinding OK", 'normal');
+                // Check status
+                spotifyPlayer.getCurrentState().then(state => {
+                   if(state && !state.paused) updateUIState(true);
+                   else updateUIState(false);
+                });
             }
         });
 
         // --- SPELER ---
         function initSpotifyPlayer() {
-            if(window.Spotify && spotifyPlayer) {
-                try { spotifyPlayer.disconnect(); } catch(e) { }
-            }
+            if(window.Spotify && spotifyPlayer) { try { spotifyPlayer.disconnect(); } catch(e) { } }
 
             window.onSpotifyWebPlaybackSDKReady = () => {
                 const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
@@ -254,11 +275,8 @@
                     document.getElementById('loading-section').style.display = 'none';
 
                     if (hasGameStarted) {
-                        // OEPS! We zijn herstart terwijl het spel bezig was (zombie sessie?)
-                        // Volgens jouw instructie: blokkeren en vragen om refresh.
-                        triggerFatalError();
+                        transferPlayback(device_id, false);
                     } else {
-                        // Eerste start -> Normaal gedrag
                         document.getElementById('start-screen').style.display = 'flex';
                         transferPlayback(device_id, false);
                     }
@@ -267,13 +285,9 @@
                 player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
                 
                 player.addListener('player_state_changed', state => {
-                    if (!state) return;
+                    if (!state || isOfflineMode) return;
                     isPlaying = !state.paused;
-                    // Alleen updaten als we niet in fatal error mode zitten
-                    const box = document.getElementById('status-box');
-                    if (!box.classList.contains('status-error')) {
-                        updateUIState(isPlaying);
-                    }
+                    updateUIState(isPlaying);
                 });
 
                 player.connect();
@@ -332,10 +346,8 @@
 
         // --- PLAYBACK ---
         async function togglePlayback() { 
-            // Als we in fatal error zitten, doe niets
-            const box = document.getElementById('status-box');
-            if (box.classList.contains('status-error')) return;
-
+            if(document.getElementById('status-box').classList.contains('status-error')) return; // Slot erop
+            
             if (!isTrackLoaded || !deviceId) {
                 playCurrentSong(true);
             } else if (spotifyPlayer) {
@@ -344,26 +356,32 @@
         }
 
         async function playCurrentSong(allowRetry) {
-            const status = document.getElementById('player-status');
+            // Als we offline zijn: Toon Oranje waarschuwing en stop
+            if(isOfflineMode) { 
+                setStatusMessage("⚠️ GEEN INTERNET", 'warning'); 
+                return; 
+            }
             
-            // Check op deviceId
-            if(!deviceId) { triggerFatalError(); return; }
+            // Als we geen deviceId hebben (zombie sessie): ROOD
+            if(!deviceId) { 
+                triggerFatalError(); 
+                return; 
+            }
             
             setStatusMessage("Laden...", 'normal');
 
-            // --- DE 4 SECONDEN WATCHDOG ---
+            // --- DE TIMER ---
+            // We starten de timer voordat we iets doen.
             if(watchdogTimer) clearTimeout(watchdogTimer);
+            
             watchdogTimer = setTimeout(() => {
-                // Als we hier zijn, duurt het te lang (> 4s).
-                // CHECK: Als we nog steeds aan het laden zijn...
-                if (!isTrackLoaded && document.getElementById('player-status').innerText === "Laden...") {
-                    log("Watchdog: Timeout. Fatal Error.");
-                    triggerFatalError();
-                }
-            }, 4000);
+                // Als deze timer afgaat, betekent het dat we nog niet 'geslaagd' zijn.
+                log("Watchdog: TIJD IS OP. CRASHEN MAAR.");
+                triggerFatalError();
+            }, 4000); // 4 seconden
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); 
+            const timeoutId = setTimeout(() => controller.abort(), 2000); 
 
             try {
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -375,19 +393,23 @@
                 clearTimeout(timeoutId);
 
                 if (!res.ok) {
+                    // Als server zegt "Nee" -> Fataal
                     if (res.status === 401) { localStorage.removeItem('access_token'); window.location.reload(); return; }
                     throw new Error(`Spotify Error: ${res.status}`);
                 }
                 
-                // Gelukt! Annuleer de fatal error watchdog
+                // HOERA! We zijn er. Timer onschadelijk maken.
                 clearTimeout(watchdogTimer);
+                
                 isTrackLoaded = true; 
 
             } catch (e) {
                 clearTimeout(timeoutId);
+                // Ook bij een error mag de timer uit, want we handelen het hier af
                 clearTimeout(watchdogTimer);
                 
-                // Bij error: blokkeer de boel.
+                // Als we hier komen, is de fetch mislukt (bv. offline terwijl we dachten online te zijn)
+                // Dit is dus een zombie sessie -> FATAAL
                 triggerFatalError();
             }
         }
@@ -398,6 +420,7 @@
             document.getElementById('app-section').style.display = 'block';
             updateUIState(false);
             isTrackLoaded = false;
+            // Zeker zijn dat timer uit is
             if(watchdogTimer) clearTimeout(watchdogTimer);
             isScanningLocked = false; 
             resumeCamera();
