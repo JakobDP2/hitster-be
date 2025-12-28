@@ -271,15 +271,15 @@
             if(hasGameStarted && spotifyPlayer) {
                 setStatusMessage("Verbinding OK", 'normal');
                 
-                spotifyPlayer.getCurrentState().then(state => {
-                    if (!state) {
-                         recoverConnection();
-                    } else if (state.paused) {
-                        updateUIState(false);
-                    } else {
-                        updateUIState(true);
-                    }
-                });
+                // spotifyPlayer.getCurrentState().then(state => {
+                //     if (!state) {
+                //          recoverConnection();
+                //     } else if (state.paused) {
+                //         updateUIState(false);
+                //     } else {
+                //         updateUIState(true);
+                //     }
+                // });
             }
         });
 
