@@ -9,135 +9,111 @@
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     
     <style>
-        /* --- 1. ALGEMENE STIJL --- */
+        /* --- STYLES --- */
         body { 
             background-color: #121212; 
             color: white; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
             touch-action: manipulation; 
-            display: flex; flex-direction: column; min-height: 100vh; margin: 0;
+            display: flex; flex-direction: column; min-height: 100vh; margin: 0; 
             overflow: hidden; 
         }
         
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
-        .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); color: #1db954; }
 
-        /* --- 2. START SCHERM --- */
-        #start-screen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #121212; z-index: 9998;
-            display: none; /* Wordt getoond als speler klaar is */
-            flex-direction: column; justify-content: center; align-items: center;
-        }
+        /* START SCHERM */
+        #start-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #121212; z-index: 9998; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        .btn-start { background-color: #1db954; color: white; border: none; width: 200px; height: 200px; border-radius: 50%; font-size: 1.5rem; font-weight: 800; text-transform: uppercase; box-shadow: 0 0 50px rgba(29, 185, 84, 0.6); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(29, 185, 84, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); } }
 
-        .btn-start {
-            background-color: #1db954; color: white; border: none; 
-            width: 200px; height: 200px; border-radius: 50%; 
-            font-size: 1.5rem; font-weight: 800; text-transform: uppercase;
-            box-shadow: 0 0 50px rgba(29, 185, 84, 0.6);
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.7); }
-            70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(29, 185, 84, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
-        }
-
-        /* --- 3. SCANNER STIJL --- */
-        #reader { 
-            width: 100%; 
-            max-width: 400px; 
-            margin: 0 auto; 
-            border-radius: 20px; 
-            overflow: hidden; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            background: #000;
-            min-height: 350px;
-            position: relative;
-            z-index: 1;
-        }
-        
+        /* SCANNER */
+        #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #000; min-height: 350px; position: relative; z-index: 1; }
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
         
-        /* --- 4. CONTROLS --- */
-        #controls {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #121212; z-index: 9999;
-            display: none; flex-direction: column; justify-content: center; align-items: center;
-            padding: 20px; box-sizing: border-box;
+        /* CONTROLS CONTAINER */
+        #controls { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background-color: #121212; z-index: 9999; 
+            display: none; flex-direction: column; justify-content: center; align-items: center; 
+            padding: 20px; box-sizing: border-box; 
         }
-
-        .found-text { font-size: 2rem; font-weight: bold; margin-bottom: 10px; color: #1db954; }
+        
+        .found-text { font-size: 2.5rem; font-weight: 900; margin-bottom: 20px; color: #1db954; text-transform: uppercase; letter-spacing: 2px; }
         .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 40px; letter-spacing: 2px; }
-
-        .big-play-btn {
-            width: 200px; height: 200px; border-radius: 50%; background-color: #1db954; border: none;
-            color: white; font-size: 6rem; box-shadow: 0 0 60px rgba(29, 185, 84, 0.4);
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-            transition: all 0.2s; -webkit-tap-highlight-color: transparent; margin-bottom: 50px;
+        
+        .big-play-btn { 
+            width: 220px; height: 220px; border-radius: 50%; 
+            background-color: #1db954; border: none; color: white; 
+            font-size: 7rem; box-shadow: 0 0 60px rgba(29, 185, 84, 0.4); 
+            display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; transition: all 0.2s; 
+            -webkit-tap-highlight-color: transparent; 
+            margin-bottom: 30px; 
         }
-        .big-play-btn:active { transform: scale(0.9); }
+        .big-play-btn:active { transform: scale(0.95); }
         .big-play-btn.paused { background-color: white; color: #1db954; box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }
         
-        .btn-next {
+        /* STATUS BOX */
+        #status-box {
+            width: 100%; max-width: 350px;
+            height: 60px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            transition: background-color 0.3s;
+            padding: 0 10px;
+        }
+        
+        .status-text { 
+            font-size: 1.1rem; font-weight: bold; color: white;
+            text-align: center; width: 100%; margin: 0; line-height: 1.2;
+        }
+
+        .status-normal { background-color: transparent; }
+        .status-warning { background-color: #ff9800; color: #000; box-shadow: 0 0 15px rgba(255, 152, 0, 0.4); animation: pulse-warning 2s infinite; } 
+        .status-error { background-color: #f44336; color: white; box-shadow: 0 0 15px rgba(244, 67, 54, 0.4); } 
+
+        @keyframes pulse-warning { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+
+        .btn-next { 
             background: #333; color: white; border: none; border-radius: 50px; 
-            padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; font-weight: bold;
+            padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; 
+            font-weight: bold; transition: all 0.3s; 
         }
         .btn-next:active { background: #444; }
+        
+        .btn-disabled { 
+            opacity: 0.2 !important; pointer-events: none !important; filter: grayscale(100%) !important;
+            border: none !important; box-shadow: none !important;
+        }
 
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
-        /* --- 5. STATUS EN ERROR --- */
-        .status-text { 
-            color: #b3b3b3; font-size: 0.9rem; margin-top: 10px; 
-            transition: all 0.2s ease;
-            padding: 10px; border-radius: 8px;
-            min-height: 30px;
-        }
-
-        .status-error {
-            color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase;
-            background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
-            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-        }
-
-        @keyframes shake {
-            10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); }
-        }
+        #loading-text { font-size: 1.2rem; color: #b3b3b3; margin-top: 20px; }
     </style>
 </head>
 <body class="text-center">
 
-    <div class="header">
-        <h1>🎵 HITSTER BE</h1>
-    </div>
-
-    <div id="login-section" style="display:none;">
-        <p class="mt-5 text-muted">Verbind met Spotify om te starten</p>
-        <button onclick="pkceLogin()" class="btn btn-spotify">Log in met Spotify</button>
-    </div>
-
-    <div id="loading-section" style="display:none; margin-top: 100px;">
-        <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
-        <p class="status-text" id="loading-text">Speler verbinden...</p>
-    </div>
-
-    <div id="start-screen">
-        <button class="btn-start" onclick="startGame()">START<br>SPEL</button>
-        <!-- <p class="status-text mt-4">Klaar om te spelen</p> -->
-    </div>
-
-    <div id="app-section" style="display:none;">
-        <div id="reader"></div>
-        <div id="status" class="status-text">Richt je camera op een kaart</div>
-    </div>
-
+    <div class="header"><h1>🎵 HITSTER BE</h1></div>
+    <div id="login-section" style="display:none;"><p class="mt-5 text-muted">Verbind met Spotify om te starten</p><button onclick="pkceLogin()" class="btn btn-spotify">Log in met Spotify</button></div>
+    <div id="loading-section" style="display:none; margin-top: 100px;"><div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status"></div><p id="loading-text">Speler verbinden...</p></div>
+    
+    <div id="start-screen"><button class="btn-start" onclick="startGame()">START<br>SPEL</button></div>
+    
+    <div id="app-section" style="display:none;"><div id="reader"></div><div id="status" class="status-text mt-3">Richt je camera op een kaart</div></div>
+    
     <div id="controls">
-        <div class="found-text">Gevonden!</div>
+        <div class="found-text">GEVONDEN!</div>
         <div class="card-id-text" style="visibility: hidden;">KAART #<span id="song-id-display">0</span></div>
+        
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn">▶️</button>
-        <p class="status-text" id="player-status">Laden...</p>
-        <button onclick="resetScanner()" class="btn-next">Volgende Kaart</button>
+        
+        <div id="status-box" class="status-normal">
+            <p id="player-status" class="status-text"></p>
+        </div>
+        
+        <button id="btnNext" onclick="resetScanner()" class="btn-next">VOLGENDE KAART</button>
     </div>
 
     <script>
@@ -147,49 +123,57 @@
     </script>
 
     <script>
-        // ================= CONFIGURATIE =================
+        function log(msg) { console.log(msg); }
+
         const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; 
         const redirectUri = "https://jakobdp2.github.io/hitster-be/";
-        // ================================================
 
-        let accessToken = null;
-        let deviceId = null;
-        let spotifyPlayer = null;
-        let html5QrCode = null;
-        let currentSong = null;
-        let isTrackLoaded = false;
-        let isPlaying = false;
-        let isScanningLocked = false;
+        let accessToken = null, deviceId = null, spotifyPlayer = null, html5QrCode = null;
+        let currentSong = null, isTrackLoaded = false, isPlaying = false, isScanningLocked = false;
         let wakeLock = null;
-        let isRecovering = false;
+        let hasGameStarted = false;
+        let isOfflineMode = false;
+        
+        // --- DE HARTSLAG VARIABELEN ---
+        let loadingStartTime = 0; // 0 betekent: we zijn niet aan het laden
+        let isFatalError = false; 
+        let lastVisibilityChange = Date.now();
 
-        // --- WAKE LOCK ---
-        async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } 
-            catch (err) { console.error(`Wake Lock error: ${err.message}`); }
-        }
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock();
+        async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
+        
+        document.addEventListener('visibilitychange', async () => { 
+            if (document.visibilityState === 'visible') {
+                const now = Date.now();
+                if (now - lastVisibilityChange > 120000) { window.location.reload(); return; }
+                requestWakeLock();
+                lastVisibilityChange = now;
+            } else {
+                lastVisibilityChange = Date.now();
+            }
         });
 
-        // --- LOGIN ---
+        // --- GLOBAL HEARTBEAT (DE GROTE REDDER) ---
+        // Deze interval controleert elke seconde of we vastzitten
+        setInterval(() => {
+            if (isFatalError) return; // Als we al dood zijn, doe niks
+
+            // 1. Check of laden te lang duurt
+            if (loadingStartTime > 0) {
+                const duration = Date.now() - loadingStartTime;
+                if (duration > 5000) { // 5 seconden limiet
+                    console.log("HEARTBEAT: Laden duurt te lang (" + duration + "ms). Trigger Fatal Error.");
+                    triggerFatalError();
+                }
+            }
+        }, 1000);
+
+        // ---- AUTH ----
         async function pkceLogin() {
-            const generateRandomString = (length) => {
-                const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                let text = ''; for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); } return text;
-            };
-            const generateCodeChallenge = async (codeVerifier) => {
-                const data = new TextEncoder().encode(codeVerifier);
-                const digest = await window.crypto.subtle.digest('SHA-256', data);
-                return btoa(String.fromCharCode.apply(null, new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-            };
-            const codeVerifier = generateRandomString(128);
-            localStorage.setItem('pkce_code_verifier', codeVerifier);
+            const generateRandomString = (length) => { const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; let text = ''; for (let i = 0; i < length; i++) { text += possible.charAt(Math.floor(Math.random() * possible.length)); } return text; };
+            const generateCodeChallenge = async (codeVerifier) => { const data = new TextEncoder().encode(codeVerifier); const digest = await window.crypto.subtle.digest('SHA-256', data); return btoa(String.fromCharCode.apply(null, new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+            const codeVerifier = generateRandomString(128); localStorage.setItem('pkce_code_verifier', codeVerifier);
             const codeChallenge = await generateCodeChallenge(codeVerifier);
-            const args = new URLSearchParams({
-                response_type: 'code', client_id: clientId, scope: 'streaming user-read-email user-read-private user-modify-playback-state',
-                redirect_uri: redirectUri, code_challenge_method: 'S256', code_challenge: codeChallenge
-            });
+            const args = new URLSearchParams({ response_type: 'code', client_id: clientId, scope: 'streaming user-read-email user-read-private user-modify-playback-state', redirect_uri: redirectUri, code_challenge_method: 'S256', code_challenge: codeChallenge });
             window.location = 'https://accounts.spotify.com/authorize?' + args;
         }
 
@@ -202,142 +186,168 @@
                 try {
                     const response = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body });
                     const data = await response.json();
-                    if(data.access_token) {
-                        localStorage.setItem('access_token', data.access_token);
-                        window.history.replaceState({}, document.title, "/hitster-be/"); 
-                        window.location.href = redirectUri; 
-                    }
-                } catch(e) { console.error(e); }
+                    if(data.access_token) { localStorage.setItem('access_token', data.access_token); window.history.replaceState({}, document.title, "/hitster-be/"); window.location.href = redirectUri; }
+                } catch(e) {}
             } else {
                 accessToken = localStorage.getItem('access_token');
                 if(accessToken) startApp(); else document.getElementById('login-section').style.display = 'block';
             }
         }
 
-        // --- APP START ---
-        function startApp() {
-            document.getElementById('login-section').style.display = 'none';
-            document.getElementById('loading-section').style.display = 'block';
+        function startApp() { document.getElementById('login-section').style.display = 'none'; document.getElementById('loading-section').style.display = 'block'; initSpotifyPlayer(); }
+
+        // --- UI HELPERS ---
+        function setStatusMessage(msg, type = 'normal') {
+            if (isFatalError) return; // FATAL overrulet alles
+
+            const box = document.getElementById('status-box');
+            const text = document.getElementById('player-status');
             
-            // We initialiseren de speler alvast
-            initSpotifyPlayer();
+            text.innerText = msg;
+            box.className = ''; 
+            
+            if (type === 'error') box.classList.add('status-error'); 
+            else if (type === 'warning') box.classList.add('status-warning');
+            else box.classList.add('status-normal'); 
         }
 
-        function initSpotifyPlayer() {
-            window.onSpotifyWebPlaybackSDKReady = () => {
-                if(spotifyPlayer) spotifyPlayer.disconnect();
+        function disableControls(disabled) {
+            const playBtn = document.getElementById('sdkPlayBtn');
+            const nextBtn = document.getElementById('btnNext');
+            
+            if (disabled) {
+                playBtn.classList.add('btn-disabled');
+                nextBtn.classList.add('btn-disabled');
+            } else {
+                playBtn.classList.remove('btn-disabled');
+                nextBtn.classList.remove('btn-disabled');
+            }
+        }
 
+        function updateUIState(playing) {
+            if (isFatalError) return;
+
+            const btn = document.getElementById('sdkPlayBtn');
+            if (playing) { 
+                btn.innerText = "⏸️"; btn.classList.add('paused'); 
+                if(!isOfflineMode && loadingStartTime === 0) setStatusMessage("", 'normal'); 
+            } else { 
+                btn.innerText = "▶️"; btn.classList.remove('paused'); 
+                if(isTrackLoaded && !isOfflineMode && loadingStartTime === 0) setStatusMessage("Gepauzeerd", 'normal'); 
+            }
+        }
+
+        // --- FATAL ERROR STATE ---
+        function triggerFatalError() {
+            if (isFatalError) return;
+            isFatalError = true;
+            loadingStartTime = 0; // Timer resetten
+            
+            const box = document.getElementById('status-box');
+            const text = document.getElementById('player-status');
+            
+            text.innerText = "HERLAAD DE PAGINA ↻";
+            box.className = ''; 
+            box.classList.add('status-error'); 
+            
+            disableControls(true);
+        }
+
+        // --- NETWORK HANDLERS ---
+        window.addEventListener('offline', () => {
+            log("Netwerk verloren...");
+            isOfflineMode = true; 
+            if(document.getElementById('controls').style.display === 'flex' && !isFatalError) {
+                setStatusMessage("⚠️ GEEN INTERNET", 'warning');
+                disableControls(true);
+            }
+        });
+
+        window.addEventListener('online', () => {
+            log("Netwerk terug!");
+            isOfflineMode = false;
+            
+            if (isFatalError) return;
+
+            // BELANGRIJK: Als we aan het laden zijn, mag "Verbinding OK" dit niet overschrijven!
+            if (loadingStartTime > 0) {
+                log("Online event: genegeerd want we zijn aan het laden.");
+                return;
+            }
+
+            disableControls(false);
+
+            if(hasGameStarted && spotifyPlayer) {
+                setStatusMessage("Verbinding OK", 'normal');
+                spotifyPlayer.getCurrentState().then(state => {
+                   if(state && !state.paused) updateUIState(true);
+                   else updateUIState(false);
+                });
+            }
+        });
+
+        // --- SPELER ---
+        function initSpotifyPlayer() {
+            if(window.Spotify && spotifyPlayer) { try { spotifyPlayer.disconnect(); } catch(e) { } }
+
+            window.onSpotifyWebPlaybackSDKReady = () => {
                 const player = new Spotify.Player({ name: 'Hitster BE', getOAuthToken: cb => { cb(accessToken); }, volume: 1.0 });
 
                 player.addListener('ready', ({ device_id }) => {
-                    console.log('Speler klaar! ID:', device_id);
                     deviceId = device_id;
-                    
-                    // Verberg laadscherm
                     document.getElementById('loading-section').style.display = 'none';
 
-                    if (isRecovering && currentSong) {
-                        // Als we herstellen, direct spelen (want we hebben al eens geklikt)
-                        document.getElementById('player-status').innerText = "Hersteld! Starten...";
-                        isRecovering = false;
+                    if (hasGameStarted) {
                         transferPlayback(device_id, true);
                     } else {
-                        // EERSTE KEER STARTEN: TOON START KNOP
-                        // Dit is essentieel voor de 'First Scan Play' fix
                         document.getElementById('start-screen').style.display = 'flex';
-                        
-                        // Verbind vast op achtergrond
                         transferPlayback(device_id, false);
                     }
                 });
 
+                player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
+                
                 player.addListener('player_state_changed', state => {
-                    if (!state) return;
+                    if (!state || isOfflineMode || isFatalError) return;
                     isPlaying = !state.paused;
-                    const btn = document.getElementById('sdkPlayBtn');
-                    const statusText = document.getElementById('player-status');
                     
-                    if (isPlaying) {
-                        btn.innerText = "⏸️"; btn.classList.add('paused'); statusText.innerText = "";
-                    } else {
-                        btn.innerText = "▶️"; btn.classList.remove('paused'); 
-                        if(isTrackLoaded) statusText.innerText = "Gepauzeerd";
+                    // Als we aan het spelen zijn, is het laden gelukt!
+                    if (isPlaying && loadingStartTime > 0) {
+                        loadingStartTime = 0; // Timer stoppen
                     }
+                    updateUIState(isPlaying);
                 });
 
-                player.addListener('authentication_error', () => { 
-                    localStorage.removeItem('access_token'); window.location.reload(); 
-                });
                 player.connect();
                 spotifyPlayer = player;
             };
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
         }
 
-        // DE GOUDEN KLIK FUNCTIE
         function startGame() {
-            // 1. Audio unlocken
-            const audio = new Audio();
-            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-            audio.play().catch(e => {});
-            
-            if(spotifyPlayer) {
-                spotifyPlayer.activateElement().then(() => {
-                    console.log("Spotify Geactiveerd!");
-                });
-            }
-
-            // 2. Wake Lock
+            hasGameStarted = true;
+            const audio = new Audio(); audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'; audio.play().catch(e => {});
+            if(spotifyPlayer) spotifyPlayer.activateElement();
             requestWakeLock();
-
-            // 3. UI Wisselen
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
-
-            // 4. Camera starten
             startCamera();
         }
 
-        window.addEventListener('online', () => {
-            if (document.getElementById('controls').style.display === 'flex') {
-                document.getElementById('player-status').innerText = "Netwerk herstel... 🔄";
-            }
-            isRecovering = true;
-            initSpotifyPlayer();
-        });
-
         async function transferPlayback(id, autoPlay) {
-            await fetch('https://api.spotify.com/v1/me/player', {
-                method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ "device_ids": [id], "play": false }) 
-            });
-            if(autoPlay) setTimeout(() => playCurrentSong(false), 500);
+            await fetch('https://api.spotify.com/v1/me/player', { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ "device_ids": [id], "play": autoPlay }) });
         }
 
-        // --- CAMERA ---
         function startCamera() {
-            if (html5QrCode) return; 
-            isScanningLocked = false;
-            html5QrCode = new Html5Qrcode("reader");
+            if (html5QrCode) return; isScanningLocked = false; html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, (errorMessage) => { })
-            .catch(err => {
-                document.getElementById('status').innerText = "⚠️ Camera error. Refresh pagina.";
-                document.getElementById('status').classList.add('status-error');
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, (e) => {}).catch(err => { 
+                const statusEl = document.getElementById('status');
+                statusEl.innerText = "⚠️ Camera Error"; statusEl.classList.add('status-camera-error');
             });
         }
-
-        function pauseCamera() {
-            if (html5QrCode) { try { html5QrCode.pause(true); } catch(e) { console.log("Pause error", e); } }
-        }
-
-        function resumeCamera() {
-            if (html5QrCode) { 
-                try { html5QrCode.resume(); } 
-                catch (e) { html5QrCode.clear().then(() => { html5QrCode = null; startCamera(); }); } 
-            }
-        }
+        function pauseCamera() { if (html5QrCode) { try { html5QrCode.pause(true); } catch(e) {} } }
+        function resumeCamera() { if (html5QrCode) { try { html5QrCode.resume(); } catch (e) { html5QrCode.clear().then(() => { html5QrCode = null; startCamera(); }); } } }
 
         function onScanSuccess(decodedText) {
             if (isScanningLocked) return;
@@ -346,48 +356,55 @@
             const foundSong = songs.find(s => s.id === id);
             
             if (foundSong) {
-                isScanningLocked = true;
-                currentSong = foundSong;
-                
+                isScanningLocked = true; currentSong = foundSong;
                 pauseCamera();
-
                 document.getElementById('app-section').style.display = 'none';
                 document.getElementById('controls').style.display = 'flex'; 
                 document.getElementById('song-id-display').innerText = id;
                 document.getElementById('sdkPlayBtn').disabled = false; 
-                
                 playCurrentSong(true);
-            } else {
-                handleScanError("ONGELDIGE KAART!");
-            }
+            } else { handleScanError("ONGELDIGE KAART!"); }
         }
 
         function handleScanError(msg) {
-            isScanningLocked = true;
-            const statusEl = document.getElementById('status');
-            const originalText = "Richt je camera op een kaart";
-            statusEl.innerText = "⚠️ " + msg;
-            statusEl.classList.add('status-error'); 
+            isScanningLocked = true; const statusEl = document.getElementById('status'); statusEl.innerText = "⚠️ " + msg; statusEl.classList.add('status-camera-error'); 
             if (navigator.vibrate) navigator.vibrate(200);
-            setTimeout(() => {
-                statusEl.innerText = originalText;
-                statusEl.classList.remove('status-error'); 
-                isScanningLocked = false; 
-            }, 2000);
+            setTimeout(() => { statusEl.innerText = "Richt je camera op een kaart"; statusEl.classList.remove('status-camera-error'); isScanningLocked = false; }, 2000);
         }
 
-        async function togglePlayback() {
-            if (!isTrackLoaded) playCurrentSong(true);
-            else if (spotifyPlayer) spotifyPlayer.togglePlay();
+        // --- PLAYBACK ---
+        async function togglePlayback() { 
+            if (isFatalError) return;
+            if(document.getElementById('status-box').classList.contains('status-error') || 
+               document.getElementById('status-box').classList.contains('status-warning')) return; 
+
+            if (!isTrackLoaded || !deviceId) {
+                playCurrentSong(true);
+            } else if (spotifyPlayer) {
+                spotifyPlayer.togglePlay().catch(e => { playCurrentSong(true); });
+            }
         }
 
         async function playCurrentSong(allowRetry) {
-            const status = document.getElementById('player-status');
-            if(!deviceId) { status.innerText = "⚠️ Geen speler."; return; }
-            status.innerText = "Laden...";
+            if (isFatalError) return;
+
+            if(isOfflineMode) { 
+                setStatusMessage("⚠️ GEEN INTERNET", 'warning'); 
+                return; 
+            }
+            
+            if(!deviceId) { 
+                triggerFatalError(); 
+                return; 
+            }
+            
+            setStatusMessage("Laden...", 'normal');
+            
+            // START DE HARTSLAG MONITORING
+            loadingStartTime = Date.now();
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); 
+            const timeoutId = setTimeout(() => controller.abort(), 2500); 
 
             try {
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -398,39 +415,33 @@
                 });
                 clearTimeout(timeoutId);
 
-                if (res.status === 401) {
-                    localStorage.removeItem('access_token');
-                    window.location.reload();
-                    return;
+                if (!res.ok) {
+                    if (res.status === 401) { localStorage.removeItem('access_token'); window.location.reload(); return; }
+                    throw new Error(`Spotify Error: ${res.status}`);
                 }
-                isTrackLoaded = true;
-                fetch(`https://open.spotify.com/embed/track/ID_HERE3?volume_percent=100&device_id=${deviceId}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}` } });
+                
+                // Fetch gelukt! Maar we wachten op 'player_state_changed' om loadingStartTime op 0 te zetten
+                isTrackLoaded = true; 
 
             } catch (e) {
                 clearTimeout(timeoutId);
-                if ((e.name === 'AbortError' || e.message.includes('Failed to fetch')) && allowRetry) {
-                    document.getElementById('player-status').innerText = "Herstellen...";
-                    isRecovering = true;
-                    initSpotifyPlayer();
-                } else {
-                    status.innerText = "Klik op Play ▶️";
-                }
+                loadingStartTime = 0; // Resetten, want we gaan error tonen
+                
+                log("Fetch Error: " + e.message);
+                triggerFatalError();
             }
         }
 
         function resetScanner() {
             if(spotifyPlayer) spotifyPlayer.pause();
-            
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             
-            const btn = document.getElementById('sdkPlayBtn');
-            btn.innerText = "▶️";
-            btn.classList.remove('paused');
+            if (!isFatalError) updateUIState(false);
             
             isTrackLoaded = false;
-            isScanningLocked = false;
-            isRecovering = false;
+            loadingStartTime = 0; // Zeker resetten
+            isScanningLocked = false; 
             resumeCamera();
         }
 
