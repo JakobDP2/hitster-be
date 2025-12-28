@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hitster BE SMART</title>
+    <title>Hitster BE DEV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
@@ -12,6 +12,7 @@
         /* --- STYLES --- */
         body { background-color: #121212; color: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; touch-action: manipulation; display: flex; flex-direction: column; min-height: 100vh; margin: 0; overflow: hidden; }
         
+        /* DEV HEADER */
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
         .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); color: #1db954; }
 
@@ -79,7 +80,7 @@
         // Status Vlaggen
         let isRecovering = false;
         let hasGameStarted = false;
-        let isOfflineMode = false; // NIEUW: Houdt bij of we offline zijn
+        let isOfflineMode = false;
 
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
         document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
@@ -113,45 +114,42 @@
 
         function startApp() { document.getElementById('login-section').style.display = 'none'; document.getElementById('loading-section').style.display = 'block'; initSpotifyPlayer(); }
 
-        // --- NETWORK HANDLERS (DE GROTE FIX) ---
+        // --- NETWORK HANDLERS ---
         window.addEventListener('offline', () => {
             log("Netwerk verloren...");
-            isOfflineMode = true; // Zet slotje op updates
+            isOfflineMode = true; 
             
             if(document.getElementById('controls').style.display === 'flex') {
                 const statusText = document.getElementById('player-status');
                 statusText.innerText = "⚠️ Geen internet. Wachten...";
                 
-                // DE PLAY KNOP BLIJFT ZOALS HIJ IS! We disablen hem alleen.
+                // Knoppen dof maken
                 const btn = document.getElementById('sdkPlayBtn');
-                btn.style.opacity = '0.5'; // Beetje doorzichtig om aan te geven dat ie niet werkt
-                btn.style.pointerEvents = 'none'; // Niet klikbaar
+                btn.style.opacity = '0.5';
+                btn.style.pointerEvents = 'none';
             }
         });
 
         window.addEventListener('online', () => {
             log("Netwerk terug!");
-            isOfflineMode = false; // Haal slotje eraf
+            isOfflineMode = false;
 
-            // Heractiveer de knop visueel
+            // Knoppen weer actief
             const btn = document.getElementById('sdkPlayBtn');
             btn.style.opacity = '1';
             btn.style.pointerEvents = 'auto';
 
             if(hasGameStarted && spotifyPlayer) {
-                document.getElementById('player-status').innerText = "Verbinding hersteld...";
+                document.getElementById('player-status').innerText = "Verbinding OK";
                 
-                // Vraag aan Spotify: Ben je nog aan het spelen?
+                // Check of we UI moeten updaten
                 spotifyPlayer.getCurrentState().then(state => {
                     if (!state) {
-                         // Speler is dood -> Dan pas herstellen
                          recoverConnection();
                     } else if (state.paused) {
-                        // Hij stond op pauze -> Zet UI op Play (driehoekje)
                         updateUIState(false);
                         document.getElementById('player-status').innerText = "Gepauzeerd.";
                     } else {
-                        // Hij is aan het spelen -> Zet UI op Pauze (streepjes)
                         updateUIState(true);
                         document.getElementById('player-status').innerText = "";
                     }
@@ -187,12 +185,14 @@
                     document.getElementById('loading-section').style.display = 'none';
 
                     if (hasGameStarted) {
-                        // Silent Recovery
+                        // Silent Recovery: We zaten al in het spel
                         if (currentSong && document.getElementById('controls').style.display === 'flex') {
-                            document.getElementById('player-status').innerText = "Klaar om te spelen.";
+                            document.getElementById('player-status').innerText = "Verbinding OK";
                             isRecovering = false; 
-                            // We triggeren geen play, want misschien speelt hij nog
-                            transferPlayback(device_id, false); 
+                            
+                            // HIER IS DE FIX: true = blijf spelen (of ga spelen)!
+                            // Niet pauzeren (false)
+                            transferPlayback(device_id, true); 
                         } else {
                             transferPlayback(device_id, false);
                         }
@@ -205,7 +205,7 @@
                 player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
                 
                 player.addListener('player_state_changed', state => {
-                    if (!state || isOfflineMode) return; // Negeer updates als we offline zijn!
+                    if (!state || isOfflineMode) return;
                     isPlaying = !state.paused;
                     updateUIState(isPlaying);
                 });
@@ -235,7 +235,7 @@
         }
 
         async function transferPlayback(id, autoPlay) {
-            await fetch('https://api.spotify.com/v1/me/player', { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ "device_ids": [id], "play": false }) });
+            await fetch('https://api.spotify.com/v1/me/player', { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ "device_ids": [id], "play": autoPlay }) }); // play: autoPlay doorgeven
         }
 
         function startCamera() {
@@ -315,7 +315,6 @@
                 clearTimeout(timeoutId);
                 log("Play Error: " + e.message);
                 
-                // Bij error: knop terug naar Play
                 updateUIState(false);
 
                 if (allowRetry) {
