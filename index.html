@@ -91,9 +91,6 @@
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
         #loading-text { font-size: 1.2rem; color: #b3b3b3; margin-top: 20px; }
-        .status-camera-error { color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase; background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; padding: 10px; border-radius: 8px; }
-        
-        #debug-console { display: none; }
     </style>
 </head>
 <body class="text-center">
@@ -136,13 +133,10 @@
         let wakeLock = null;
         let hasGameStarted = false;
         let isOfflineMode = false;
-        let watchdogTimer = null; 
         
-        // Vlag om aan te geven dat we in een FATAL state zitten. 
-        // Eenmaal true = game over, moet refreshen.
+        // --- DE HARTSLAG VARIABELEN ---
+        let loadingStartTime = 0; // 0 betekent: we zijn niet aan het laden
         let isFatalError = false; 
-
-        // Auto-refresh na 2 min inactiviteit
         let lastVisibilityChange = Date.now();
 
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
@@ -150,16 +144,28 @@
         document.addEventListener('visibilitychange', async () => { 
             if (document.visibilityState === 'visible') {
                 const now = Date.now();
-                if (now - lastVisibilityChange > 120000) { 
-                    window.location.reload(); 
-                    return;
-                }
+                if (now - lastVisibilityChange > 120000) { window.location.reload(); return; }
                 requestWakeLock();
                 lastVisibilityChange = now;
             } else {
                 lastVisibilityChange = Date.now();
             }
         });
+
+        // --- GLOBAL HEARTBEAT (DE GROTE REDDER) ---
+        // Deze interval controleert elke seconde of we vastzitten
+        setInterval(() => {
+            if (isFatalError) return; // Als we al dood zijn, doe niks
+
+            // 1. Check of laden te lang duurt
+            if (loadingStartTime > 0) {
+                const duration = Date.now() - loadingStartTime;
+                if (duration > 5000) { // 5 seconden limiet
+                    console.log("HEARTBEAT: Laden duurt te lang (" + duration + "ms). Trigger Fatal Error.");
+                    triggerFatalError();
+                }
+            }
+        }, 1000);
 
         // --- AUTH ---
         async function pkceLogin() {
@@ -192,8 +198,7 @@
 
         // --- UI HELPERS ---
         function setStatusMessage(msg, type = 'normal') {
-            // Als we in FATAL mode zitten, mag NIKS de tekst meer aanpassen (behalve refresh)
-            if (isFatalError) return;
+            if (isFatalError) return; // FATAL overrulet alles
 
             const box = document.getElementById('status-box');
             const text = document.getElementById('player-status');
@@ -201,13 +206,9 @@
             text.innerText = msg;
             box.className = ''; 
             
-            if (type === 'error') {
-                box.classList.add('status-error'); 
-            } else if (type === 'warning') {
-                box.classList.add('status-warning');
-            } else {
-                box.classList.add('status-normal'); 
-            }
+            if (type === 'error') box.classList.add('status-error'); 
+            else if (type === 'warning') box.classList.add('status-warning');
+            else box.classList.add('status-normal'); 
         }
 
         function disableControls(disabled) {
@@ -224,33 +225,32 @@
         }
 
         function updateUIState(playing) {
-            // Als we in FATAL mode zitten, doe niets
             if (isFatalError) return;
 
             const btn = document.getElementById('sdkPlayBtn');
             if (playing) { 
                 btn.innerText = "⏸️"; btn.classList.add('paused'); 
-                if(!isOfflineMode) setStatusMessage("", 'normal'); 
+                if(!isOfflineMode && loadingStartTime === 0) setStatusMessage("", 'normal'); 
             } else { 
                 btn.innerText = "▶️"; btn.classList.remove('paused'); 
-                if(isTrackLoaded && !isOfflineMode) setStatusMessage("Gepauzeerd", 'normal'); 
+                if(isTrackLoaded && !isOfflineMode && loadingStartTime === 0) setStatusMessage("Gepauzeerd", 'normal'); 
             }
         }
 
-        // --- FATAL ERROR STATE (DE ONE-WAY TICKET) ---
+        // --- FATAL ERROR STATE ---
         function triggerFatalError() {
-            if (isFatalError) return; // Al geactiveerd
+            if (isFatalError) return;
             isFatalError = true;
+            loadingStartTime = 0; // Timer resetten
             
             const box = document.getElementById('status-box');
             const text = document.getElementById('player-status');
             
             text.innerText = "HERLAAD DE PAGINA ↻";
             box.className = ''; 
-            box.classList.add('status-error'); // Forceer Rood
+            box.classList.add('status-error'); 
             
-            disableControls(true); // Alles op slot
-            if(watchdogTimer) clearTimeout(watchdogTimer);
+            disableControls(true);
         }
 
         // --- NETWORK HANDLERS ---
@@ -267,14 +267,18 @@
             log("Netwerk terug!");
             isOfflineMode = false;
             
-            if (isFatalError) return; // Als het al kapot is, blijft het kapot.
+            if (isFatalError) return;
 
-            // Knoppen terug open
+            // BELANGRIJK: Als we aan het laden zijn, mag "Verbinding OK" dit niet overschrijven!
+            if (loadingStartTime > 0) {
+                log("Online event: genegeerd want we zijn aan het laden.");
+                return;
+            }
+
             disableControls(false);
 
             if(hasGameStarted && spotifyPlayer) {
                 setStatusMessage("Verbinding OK", 'normal');
-                // Check status, maar mag Fatal Error niet overschrijven
                 spotifyPlayer.getCurrentState().then(state => {
                    if(state && !state.paused) updateUIState(true);
                    else updateUIState(false);
@@ -294,7 +298,7 @@
                     document.getElementById('loading-section').style.display = 'none';
 
                     if (hasGameStarted) {
-                        transferPlayback(device_id, true); // true = Doorgaan met spelen
+                        transferPlayback(device_id, true);
                     } else {
                         document.getElementById('start-screen').style.display = 'flex';
                         transferPlayback(device_id, false);
@@ -306,6 +310,11 @@
                 player.addListener('player_state_changed', state => {
                     if (!state || isOfflineMode || isFatalError) return;
                     isPlaying = !state.paused;
+                    
+                    // Als we aan het spelen zijn, is het laden gelukt!
+                    if (isPlaying && loadingStartTime > 0) {
+                        loadingStartTime = 0; // Timer stoppen
+                    }
                     updateUIState(isPlaying);
                 });
 
@@ -390,18 +399,11 @@
             }
             
             setStatusMessage("Laden...", 'normal');
-
-            // --- DE ONVERBIDDELIJKE WATCHDOG ---
-            if(watchdogTimer) clearTimeout(watchdogTimer);
             
-            // Start de timer NU. Als deze afloopt (4s), is het game over.
-            watchdogTimer = setTimeout(() => {
-                log("Watchdog: Timeout. Forceer Fatal Error.");
-                triggerFatalError();
-            }, 4000); 
+            // START DE HARTSLAG MONITORING
+            loadingStartTime = Date.now();
 
             const controller = new AbortController();
-            // Fetch timeout iets korter dan watchdog, zodat we catch block kunnen raken
             const timeoutId = setTimeout(() => controller.abort(), 2500); 
 
             try {
@@ -418,17 +420,14 @@
                     throw new Error(`Spotify Error: ${res.status}`);
                 }
                 
-                // HOERA! We zijn er. Timer onschadelijk maken.
-                clearTimeout(watchdogTimer);
+                // Fetch gelukt! Maar we wachten op 'player_state_changed' om loadingStartTime op 0 te zetten
                 isTrackLoaded = true; 
 
             } catch (e) {
                 clearTimeout(timeoutId);
-                // Timer mag ook uit, want we handelen de fout hier af.
-                clearTimeout(watchdogTimer);
+                loadingStartTime = 0; // Resetten, want we gaan error tonen
                 
                 log("Fetch Error: " + e.message);
-                // Hier komen we als fetch faalt (netwerk wissel, zombie sessie, etc)
                 triggerFatalError();
             }
         }
@@ -438,11 +437,10 @@
             document.getElementById('controls').style.display = 'none';
             document.getElementById('app-section').style.display = 'block';
             
-            // Als we NIET in fatal error zitten, resetten we de UI
             if (!isFatalError) updateUIState(false);
             
             isTrackLoaded = false;
-            if(watchdogTimer) clearTimeout(watchdogTimer);
+            loadingStartTime = 0; // Zeker resetten
             isScanningLocked = false; 
             resumeCamera();
         }
