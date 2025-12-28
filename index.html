@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hitster BE PRO</title>
+    <title>Hitster BE DEV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
@@ -72,7 +72,7 @@
 
         .status-normal { background-color: transparent; }
         .status-warning { background-color: #ff9800; color: #000; box-shadow: 0 0 15px rgba(255, 152, 0, 0.4); animation: pulse-warning 2s infinite; }
-        .status-error { background-color: #f44336; color: white; box-shadow: 0 0 15px rgba(244, 67, 54, 0.4); }
+        .status-error { background-color: #f44336; color: white; box-shadow: 0 0 15px rgba(244, 67, 54, 0.4); } /* Rood */
 
         @keyframes pulse-warning { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
 
@@ -91,9 +91,6 @@
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
         
         #loading-text { font-size: 1.2rem; color: #b3b3b3; margin-top: 20px; }
-        .status-camera-error { color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase; background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; padding: 10px; border-radius: 8px; }
-        
-        #debug-console { display: none; }
     </style>
 </head>
 <body class="text-center">
@@ -134,30 +131,11 @@
         let accessToken = null, deviceId = null, spotifyPlayer = null, html5QrCode = null;
         let currentSong = null, isTrackLoaded = false, isPlaying = false, isScanningLocked = false;
         let wakeLock = null;
-        let isRecovering = false;
         let hasGameStarted = false;
-        let isOfflineMode = false;
-        
-        // Timer variabelen
-        let lastVisibilityChange = Date.now();
-        let watchdogTimer = null; // Specifieke variabele voor de watchdog
+        let watchdogTimer = null; 
 
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
-        
-        // --- AUTO-REFRESH BIJ LANGE INACTIVITEIT ---
-        document.addEventListener('visibilitychange', async () => { 
-            if (document.visibilityState === 'visible') {
-                const now = Date.now();
-                if (now - lastVisibilityChange > 120000) { // 2 minuten
-                    window.location.reload();
-                    return;
-                }
-                requestWakeLock();
-                lastVisibilityChange = now;
-            } else {
-                lastVisibilityChange = Date.now();
-            }
-        });
+        document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
 
         // --- AUTH ---
         async function pkceLogin() {
@@ -196,10 +174,10 @@
             text.innerText = msg;
             box.className = ''; 
             
-            if (type === 'error' || type === 'offline') {
-                box.classList.add('status-warning'); 
-            } else if (type === 'critical') {
-                box.classList.add('status-error'); 
+            if (type === 'error') {
+                box.classList.add('status-error'); // Rood!
+            } else if (type === 'warning') {
+                box.classList.add('status-warning');
             } else {
                 box.classList.add('status-normal'); 
             }
@@ -222,64 +200,44 @@
             const btn = document.getElementById('sdkPlayBtn');
             if (playing) { 
                 btn.innerText = "⏸️"; btn.classList.add('paused'); 
-                if(!isOfflineMode) setStatusMessage("", 'normal'); 
+                setStatusMessage("", 'normal'); 
             } else { 
                 btn.innerText = "▶️"; btn.classList.remove('paused'); 
-                if(isTrackLoaded && !isOfflineMode) setStatusMessage("Gepauzeerd", 'normal'); 
+                if(isTrackLoaded) setStatusMessage("Gepauzeerd", 'normal'); 
             }
         }
 
-        // --- NETWORK INTELLIGENCE ---
-        // Functie om te checken of we écht internet hebben
-        async function checkConnection() {
-            try {
-                // Probeer een klein bestandje op te halen (favicon of gewoon een fetch)
-                // We gebruiken een 'no-cache' header om zeker te zijn
-                await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
-                return true;
-            } catch (e) {
-                return false;
-            }
+        // --- FATAL ERROR STATE ---
+        function triggerFatalError() {
+            setStatusMessage("HERLAAD DE PAGINA ↻", 'error');
+            disableControls(true);
         }
 
-        async function handleNetworkChange() {
-            if (!hasGameStarted || isOfflineMode) return;
-            
-            setStatusMessage("Netwerk controle... 🔄", 'normal');
-            
-            // Wacht even tot de telefoon klaar is met wisselen
-            setTimeout(async () => {
-                const isConnected = await checkConnection();
-                if (isConnected) {
-                    log("Verbinding bevestigd. Start recovery.");
-                    recoverConnection();
-                } else {
-                    log("Nog geen verbinding. Retry in 2s...");
-                    setTimeout(handleNetworkChange, 2000); // Probeer opnieuw
-                }
-            }, 1000);
-        }
-
-        if (navigator.connection) {
-            navigator.connection.addEventListener('change', handleNetworkChange);
-        }
-
+        // --- NETWORK & VISIBILITY HANDLERS ---
         window.addEventListener('offline', () => {
             log("Netwerk verloren...");
-            isOfflineMode = true; 
             if(document.getElementById('controls').style.display === 'flex') {
-                setStatusMessage("⚠️ GEEN INTERNET", 'error');
-                disableControls(true);
+                // Direct blokkeren
+                triggerFatalError();
             }
         });
 
         window.addEventListener('online', () => {
-            log("Netwerk terug!");
-            isOfflineMode = false;
-            // We doen hier niets direct, we laten handleNetworkChange of de checkConnection logic het werk doen
-            // OF we zetten de controls aan en wachten op actie
-            disableControls(false);
-            if(hasGameStarted) handleNetworkChange();
+            log("Netwerk terug (maar we vertrouwen het niet)");
+            if(hasGameStarted) {
+                // We geven geen valse hoop meer. Netwerk weg = refresh nodig.
+                triggerFatalError();
+            }
+        });
+        
+        // Extra check voor als app uit achtergrond komt
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && hasGameStarted) {
+                // Controleer of Spotify nog leeft. Zo niet (of twijfel) -> Fatal Error
+                if(!deviceId) {
+                    triggerFatalError();
+                }
+            }
         });
 
         // --- SPELER ---
@@ -296,14 +254,11 @@
                     document.getElementById('loading-section').style.display = 'none';
 
                     if (hasGameStarted) {
-                        if (currentSong && document.getElementById('controls').style.display === 'flex') {
-                            setStatusMessage("Verbinding OK", 'normal');
-                            isRecovering = false; 
-                            transferPlayback(device_id, true); 
-                        } else {
-                            transferPlayback(device_id, false);
-                        }
+                        // OEPS! We zijn herstart terwijl het spel bezig was (zombie sessie?)
+                        // Volgens jouw instructie: blokkeren en vragen om refresh.
+                        triggerFatalError();
                     } else {
+                        // Eerste start -> Normaal gedrag
                         document.getElementById('start-screen').style.display = 'flex';
                         transferPlayback(device_id, false);
                     }
@@ -312,25 +267,19 @@
                 player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
                 
                 player.addListener('player_state_changed', state => {
-                    if (!state || isOfflineMode) return;
+                    if (!state) return;
                     isPlaying = !state.paused;
-                    updateUIState(isPlaying);
+                    // Alleen updaten als we niet in fatal error mode zitten
+                    const box = document.getElementById('status-box');
+                    if (!box.classList.contains('status-error')) {
+                        updateUIState(isPlaying);
+                    }
                 });
 
                 player.connect();
                 spotifyPlayer = player;
             };
             if(window.Spotify) window.onSpotifyWebPlaybackSDKReady();
-        }
-
-        function recoverConnection() {
-            if(isRecovering) return;
-            isRecovering = true;
-            deviceId = null; 
-            setStatusMessage("Opnieuw verbinden... 🔄", 'normal');
-            // Harde reset van de player instance
-            spotifyPlayer = null; 
-            initSpotifyPlayer();
         }
 
         function startGame() {
@@ -352,8 +301,7 @@
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, (e) => {}).catch(err => { 
                 const statusEl = document.getElementById('status');
-                statusEl.innerText = "⚠️ Camera Error"; 
-                statusEl.classList.add('status-camera-error');
+                statusEl.innerText = "⚠️ Camera Error"; statusEl.classList.add('status-camera-error');
             });
         }
         function pauseCamera() { if (html5QrCode) { try { html5QrCode.pause(true); } catch(e) {} } }
@@ -379,42 +327,40 @@
         function handleScanError(msg) {
             isScanningLocked = true; const statusEl = document.getElementById('status'); statusEl.innerText = "⚠️ " + msg; statusEl.classList.add('status-camera-error'); 
             if (navigator.vibrate) navigator.vibrate(200);
-            setTimeout(() => { 
-                statusEl.innerText = "Richt je camera op een kaart"; 
-                statusEl.classList.remove('status-camera-error'); 
-                isScanningLocked = false; 
-            }, 2000);
+            setTimeout(() => { statusEl.innerText = "Richt je camera op een kaart"; statusEl.classList.remove('status-camera-error'); isScanningLocked = false; }, 2000);
         }
 
         // --- PLAYBACK ---
         async function togglePlayback() { 
+            // Als we in fatal error zitten, doe niets
+            const box = document.getElementById('status-box');
+            if (box.classList.contains('status-error')) return;
+
             if (!isTrackLoaded || !deviceId) {
                 playCurrentSong(true);
             } else if (spotifyPlayer) {
-                spotifyPlayer.togglePlay().catch(e => {
-                    playCurrentSong(true); 
-                });
+                spotifyPlayer.togglePlay().catch(e => { playCurrentSong(true); });
             }
         }
 
         async function playCurrentSong(allowRetry) {
-            if(isOfflineMode) { setStatusMessage("⚠️ GEEN INTERNET", 'error'); return; }
-            if(!deviceId) { setStatusMessage("Herstellen... (even geduld)", 'normal'); recoverConnection(); return; }
+            const status = document.getElementById('player-status');
+            
+            // Check op deviceId
+            if(!deviceId) { triggerFatalError(); return; }
             
             setStatusMessage("Laden...", 'normal');
-            
-            // --- WATCHDOG TIMER (FIXED) ---
+
+            // --- DE 4 SECONDEN WATCHDOG ---
             if(watchdogTimer) clearTimeout(watchdogTimer);
-            
             watchdogTimer = setTimeout(() => {
-                // Als we na 5 seconden nog in 'Laden...' hangen, is de verbinding waarschijnlijk 'zombie'
-                // Check of we echt nog aan het laden zijn
+                // Als we hier zijn, duurt het te lang (> 4s).
+                // CHECK: Als we nog steeds aan het laden zijn...
                 if (!isTrackLoaded && document.getElementById('player-status').innerText === "Laden...") {
-                    log("Watchdog: Timeout bereikt. Forceer herstel.");
-                    setStatusMessage("Duurt lang... Herstellen", 'normal');
-                    recoverConnection();
+                    log("Watchdog: Timeout. Fatal Error.");
+                    triggerFatalError();
                 }
-            }, 6000); // 6 seconden voor de zekerheid
+            }, 4000);
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000); 
@@ -433,21 +379,16 @@
                     throw new Error(`Spotify Error: ${res.status}`);
                 }
                 
-                clearTimeout(watchdogTimer); // Gelukt! Timer mag uit.
+                // Gelukt! Annuleer de fatal error watchdog
+                clearTimeout(watchdogTimer);
                 isTrackLoaded = true; 
 
             } catch (e) {
                 clearTimeout(timeoutId);
-                clearTimeout(watchdogTimer); // Error handled, timer mag uit.
+                clearTimeout(watchdogTimer);
                 
-                updateUIState(false);
-
-                if (allowRetry) {
-                    setStatusMessage("Verbinding herstellen...", 'normal');
-                    recoverConnection();
-                } else {
-                    setStatusMessage("Fout. Druk op Play ▶️", 'error');
-                }
+                // Bij error: blokkeer de boel.
+                triggerFatalError();
             }
         }
 
@@ -458,7 +399,7 @@
             updateUIState(false);
             isTrackLoaded = false;
             if(watchdogTimer) clearTimeout(watchdogTimer);
-            isScanningLocked = false; isRecovering = false;
+            isScanningLocked = false; 
             resumeCamera();
         }
 
