@@ -272,7 +272,6 @@
             setTimeout(() => { statusEl.innerText = "Richt je camera op een kaart"; statusEl.classList.remove('status-error'); isScanningLocked = false; }, 2000);
         }
 
-        // --- PLAYBACK ---
         async function togglePlayback() { 
             if (!isTrackLoaded || !deviceId) {
                 playCurrentSong(true);
