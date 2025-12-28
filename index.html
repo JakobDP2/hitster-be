@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hitster BE FINAL</title>
-    <title>Hitster BE DEV</title>
+    <title>Hitster BE PRO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
-
+    
     <style>
         /* --- STYLES --- */
         body { 
@@ -19,7 +18,7 @@
             display: flex; flex-direction: column; min-height: 100vh; margin: 0; 
             overflow: hidden; 
         }
-
+        
         .header { margin-top: 20px; margin-bottom: 20px; z-index: 1; }
         .header h1 { font-weight: 800; letter-spacing: -1px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); color: #1db954; }
 
@@ -31,7 +30,7 @@
         /* SCANNER */
         #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #000; min-height: 350px; position: relative; z-index: 1; }
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-
+        
         /* CONTROLS CONTAINER */
         #controls { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -39,11 +38,10 @@
             display: none; flex-direction: column; justify-content: center; align-items: center; 
             padding: 20px; box-sizing: border-box; 
         }
-
-        /* ELEMENTEN IN CONTROLS */
+        
         .found-text { font-size: 2.5rem; font-weight: 900; margin-bottom: 20px; color: #1db954; text-transform: uppercase; letter-spacing: 2px; }
         .card-id-text { font-size: 1.2rem; color: #888; margin-bottom: 40px; letter-spacing: 2px; }
-
+        
         .big-play-btn { 
             width: 220px; height: 220px; border-radius: 50%; 
             background-color: #1db954; border: none; color: white; 
@@ -51,70 +49,50 @@
             display: flex; align-items: center; justify-content: center; 
             cursor: pointer; transition: all 0.2s; 
             -webkit-tap-highlight-color: transparent; 
-            margin-bottom: 30px; /* Vast margin naar status box */
             margin-bottom: 30px; 
         }
         .big-play-btn:active { transform: scale(0.95); }
         .big-play-btn.paused { background-color: white; color: #1db954; box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }
-
-        /* STATUS BOX (FIX VOOR VERSPRINGEN) */
-        /* STATUS BOX (CSS FIX VOOR CENTREREN) */
+        
+        /* STATUS BOX */
         #status-box {
             width: 100%; max-width: 350px;
-            height: 60px; /* Vaste hoogte */
-            display: flex; align-items: center; justify-content: center;
             height: 60px;
-            display: flex; 
-            align-items: center;     /* Verticaal centreren */
-            justify-content: center; /* Horizontaal centreren */
+            display: flex; align-items: center; justify-content: center;
             margin-bottom: 30px;
             border-radius: 10px;
             transition: background-color 0.3s;
-            padding: 0 10px; /* Beetje padding aan zijkanten */
+            padding: 0 10px;
         }
-
+        
         .status-text { 
             font-size: 1.1rem; font-weight: bold; color: white;
-            text-align: center; width: 100%;
-            font-size: 1.1rem; 
-            font-weight: bold; 
-            color: white;
-            text-align: center; 
-            width: 100%;
-            margin: 0; /* Belangrijk: verwijder standaard margins van <p> */
-            line-height: 1.2;
+            text-align: center; width: 100%; margin: 0; line-height: 1.2;
         }
 
-        /* STATUS STIJLEN */
         .status-normal { background-color: transparent; }
         .status-warning { background-color: #ff9800; color: #000; box-shadow: 0 0 15px rgba(255, 152, 0, 0.4); animation: pulse-warning 2s infinite; }
         .status-error { background-color: #f44336; color: white; box-shadow: 0 0 15px rgba(244, 67, 54, 0.4); }
 
         @keyframes pulse-warning { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
 
-        /* KNOPPEN */
         .btn-next { 
             background: #333; color: white; border: none; border-radius: 50px; 
             padding: 20px 40px; font-size: 1.2rem; width: 80%; max-width: 300px; 
             font-weight: bold; transition: all 0.3s; 
         }
         .btn-next:active { background: #444; }
-
-        /* DISABLED STATE FIX (RANDJES WEG) */
+        
         .btn-disabled { 
-            opacity: 0.2 !important; 
-            pointer-events: none !important; 
-            filter: grayscale(100%) !important;
-            border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
+            opacity: 0.2 !important; pointer-events: none !important; filter: grayscale(100%) !important;
+            border: none !important; box-shadow: none !important;
         }
 
         .btn-spotify { background-color: #1db954; color: white; font-weight: bold; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 50px; margin-top: 50px;}
-
+        
         #loading-text { font-size: 1.2rem; color: #b3b3b3; margin-top: 20px; }
         .status-camera-error { color: #ff4444 !important; font-size: 1.2rem !important; font-weight: 800; text-transform: uppercase; background: rgba(50, 0, 0, 0.8); border: 2px solid #ff4444; padding: 10px; border-radius: 8px; }
-
+        
         #debug-console { display: none; }
     </style>
 </head>
@@ -123,21 +101,21 @@
     <div class="header"><h1>🎵 HITSTER BE DEV</h1></div>
     <div id="login-section" style="display:none;"><p class="mt-5 text-muted">Verbind met Spotify om te starten</p><button onclick="pkceLogin()" class="btn btn-spotify">Log in met Spotify</button></div>
     <div id="loading-section" style="display:none; margin-top: 100px;"><div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status"></div><p id="loading-text">Speler verbinden...</p></div>
-
+    
     <div id="start-screen"><button class="btn-start" onclick="startGame()">START<br>SPEL</button></div>
-
+    
     <div id="app-section" style="display:none;"><div id="reader"></div><div id="status" class="status-text mt-3">Richt je camera op een kaart</div></div>
-
+    
     <div id="controls">
         <div class="found-text">GEVONDEN!</div>
         <div class="card-id-text" style="visibility: hidden;">KAART #<span id="song-id-display">0</span></div>
-
+        
         <button id="sdkPlayBtn" onclick="togglePlayback()" class="big-play-btn">▶️</button>
-
+        
         <div id="status-box" class="status-normal">
             <p id="player-status" class="status-text"></p>
         </div>
-
+        
         <button id="btnNext" onclick="resetScanner()" class="btn-next">VOLGENDE KAART</button>
     </div>
 
@@ -160,29 +138,23 @@
         let hasGameStarted = false;
         let isOfflineMode = false;
         
-        // Timer voor "Frisse Start"
+        // Timer variabelen
         let lastVisibilityChange = Date.now();
+        let watchdogTimer = null; // Specifieke variabele voor de watchdog
 
         async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
-        document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
         
-        // --- VISIBILITY & AUTO-REFRESH LOGIC ---
+        // --- AUTO-REFRESH BIJ LANGE INACTIVITEIT ---
         document.addEventListener('visibilitychange', async () => { 
             if (document.visibilityState === 'visible') {
                 const now = Date.now();
-                // Als we langer dan 2 minuten (120000ms) weg waren: HARD RELOAD
-                // Dit fixt het "Zombie sessie" probleem na apparaatwissel.
-                if (now - lastVisibilityChange > 120000) {
-                    console.log("App was lang weg, verse start forceren...");
+                if (now - lastVisibilityChange > 120000) { // 2 minuten
                     window.location.reload();
                     return;
                 }
-                
-                // Anders, gewoon wake lock terugvragen
                 requestWakeLock();
                 lastVisibilityChange = now;
             } else {
-                // Sla tijd op wanneer we weggingen
                 lastVisibilityChange = Date.now();
             }
         });
@@ -216,26 +188,19 @@
 
         function startApp() { document.getElementById('login-section').style.display = 'none'; document.getElementById('loading-section').style.display = 'block'; initSpotifyPlayer(); }
 
-        // --- UI HELPERS (NIEUW) ---
         // --- UI HELPERS ---
         function setStatusMessage(msg, type = 'normal') {
             const box = document.getElementById('status-box');
             const text = document.getElementById('player-status');
-
-            text.innerText = msg;
             
-            // Reset classes
+            text.innerText = msg;
             box.className = ''; 
-            box.className = ''; // Reset
-
+            
             if (type === 'error' || type === 'offline') {
-                box.classList.add('status-warning'); // Oranje/Geel achtig voor opvallen
                 box.classList.add('status-warning'); 
             } else if (type === 'critical') {
-                box.classList.add('status-error'); // Rood
                 box.classList.add('status-error'); 
             } else {
-                box.classList.add('status-normal'); // Transparant
                 box.classList.add('status-normal'); 
             }
         }
@@ -243,7 +208,7 @@
         function disableControls(disabled) {
             const playBtn = document.getElementById('sdkPlayBtn');
             const nextBtn = document.getElementById('btnNext');
-
+            
             if (disabled) {
                 playBtn.classList.add('btn-disabled');
                 nextBtn.classList.add('btn-disabled');
@@ -264,14 +229,39 @@
             }
         }
 
-        // --- NETWORK HANDLERS ---
-        if (navigator.connection) {
-            navigator.connection.addEventListener('change', () => {
-                if (hasGameStarted && !isOfflineMode) {
-                    setStatusMessage("Netwerk wissel... 🔄", 'normal');
+        // --- NETWORK INTELLIGENCE ---
+        // Functie om te checken of we écht internet hebben
+        async function checkConnection() {
+            try {
+                // Probeer een klein bestandje op te halen (favicon of gewoon een fetch)
+                // We gebruiken een 'no-cache' header om zeker te zijn
+                await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function handleNetworkChange() {
+            if (!hasGameStarted || isOfflineMode) return;
+            
+            setStatusMessage("Netwerk controle... 🔄", 'normal');
+            
+            // Wacht even tot de telefoon klaar is met wisselen
+            setTimeout(async () => {
+                const isConnected = await checkConnection();
+                if (isConnected) {
+                    log("Verbinding bevestigd. Start recovery.");
                     recoverConnection();
+                } else {
+                    log("Nog geen verbinding. Retry in 2s...");
+                    setTimeout(handleNetworkChange, 2000); // Probeer opnieuw
                 }
-            });
+            }, 1000);
+        }
+
+        if (navigator.connection) {
+            navigator.connection.addEventListener('change', handleNetworkChange);
         }
 
         window.addEventListener('offline', () => {
@@ -286,21 +276,10 @@
         window.addEventListener('online', () => {
             log("Netwerk terug!");
             isOfflineMode = false;
+            // We doen hier niets direct, we laten handleNetworkChange of de checkConnection logic het werk doen
+            // OF we zetten de controls aan en wachten op actie
             disableControls(false);
-
-            if(hasGameStarted && spotifyPlayer) {
-                setStatusMessage("Verbinding OK", 'normal');
-
-                spotifyPlayer.getCurrentState().then(state => {
-                    if (!state) {
-                         recoverConnection();
-                    } else if (state.paused) {
-                        updateUIState(false);
-                    } else {
-                        updateUIState(true);
-                    }
-                });
-            }
+            if(hasGameStarted) handleNetworkChange();
         });
 
         // --- SPELER ---
@@ -331,7 +310,7 @@
                 });
 
                 player.addListener('authentication_error', () => { localStorage.removeItem('access_token'); window.location.reload(); });
-
+                
                 player.addListener('player_state_changed', state => {
                     if (!state || isOfflineMode) return;
                     isPlaying = !state.paused;
@@ -349,6 +328,8 @@
             isRecovering = true;
             deviceId = null; 
             setStatusMessage("Opnieuw verbinden... 🔄", 'normal');
+            // Harde reset van de player instance
+            spotifyPlayer = null; 
             initSpotifyPlayer();
         }
 
@@ -383,7 +364,7 @@
             const id = parseInt(decodedText);
             if (typeof songs === 'undefined') return;
             const foundSong = songs.find(s => s.id === id);
-
+            
             if (foundSong) {
                 isScanningLocked = true; currentSong = foundSong;
                 pauseCamera();
@@ -419,17 +400,24 @@
         async function playCurrentSong(allowRetry) {
             if(isOfflineMode) { setStatusMessage("⚠️ GEEN INTERNET", 'error'); return; }
             if(!deviceId) { setStatusMessage("Herstellen... (even geduld)", 'normal'); recoverConnection(); return; }
-
+            
             setStatusMessage("Laden...", 'normal');
-
-            // Watchdog: 5 sec
-            const failSafeTimeout = setTimeout(() => {
-                setStatusMessage("Duurt lang... Herstellen", 'normal');
-                recoverConnection();
-            }, 5000);
+            
+            // --- WATCHDOG TIMER (FIXED) ---
+            if(watchdogTimer) clearTimeout(watchdogTimer);
+            
+            watchdogTimer = setTimeout(() => {
+                // Als we na 5 seconden nog in 'Laden...' hangen, is de verbinding waarschijnlijk 'zombie'
+                // Check of we echt nog aan het laden zijn
+                if (!isTrackLoaded && document.getElementById('player-status').innerText === "Laden...") {
+                    log("Watchdog: Timeout bereikt. Forceer herstel.");
+                    setStatusMessage("Duurt lang... Herstellen", 'normal');
+                    recoverConnection();
+                }
+            }, 6000); // 6 seconden voor de zekerheid
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000); 
+            const timeoutId = setTimeout(() => controller.abort(), 3000); 
 
             try {
                 const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
@@ -444,14 +432,14 @@
                     if (res.status === 401) { localStorage.removeItem('access_token'); window.location.reload(); return; }
                     throw new Error(`Spotify Error: ${res.status}`);
                 }
-
-                clearTimeout(failSafeTimeout);
+                
+                clearTimeout(watchdogTimer); // Gelukt! Timer mag uit.
                 isTrackLoaded = true; 
 
             } catch (e) {
                 clearTimeout(timeoutId);
-                clearTimeout(failSafeTimeout);
-
+                clearTimeout(watchdogTimer); // Error handled, timer mag uit.
+                
                 updateUIState(false);
 
                 if (allowRetry) {
@@ -469,6 +457,7 @@
             document.getElementById('app-section').style.display = 'block';
             updateUIState(false);
             isTrackLoaded = false;
+            if(watchdogTimer) clearTimeout(watchdogTimer);
             isScanningLocked = false; isRecovering = false;
             resumeCamera();
         }
@@ -476,3 +465,4 @@
         handleToken();
     </script>
 </body>
+</html>
