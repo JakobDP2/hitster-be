@@ -67,7 +67,7 @@
     </script>
 
     <script>
-        // --- LOGGER (Voor debugging) ---
+        // --- LOGGER ---
         function log(msg) { console.log(msg); }
 
         const clientId = "08e9f4c79ca8483c9f2ae5b434e0f60c"; 
@@ -114,27 +114,36 @@
 
         function startApp() { document.getElementById('login-section').style.display = 'none'; document.getElementById('loading-section').style.display = 'block'; initSpotifyPlayer(); }
 
-        // --- NETWORK HANDLERS ---
+        // --- NETWORK HANDLERS (SEAMLESS SWITCH FIX) ---
+        
+        // 1. De "Spion": Detecteer Wifi <-> Cellular wissel
+        if (navigator.connection) {
+            navigator.connection.addEventListener('change', () => {
+                log("Connectie type veranderd! (Wifi/4G wissel)");
+                if (hasGameStarted && !isOfflineMode) {
+                    // Preventieve recovery, ook al zijn we niet 'offline'
+                    document.getElementById('player-status').innerText = "Netwerkwissel... 🔄";
+                    recoverConnection();
+                }
+            });
+        }
+
+        // 2. Offline detectie (Kabel eruit)
         window.addEventListener('offline', () => {
             log("Netwerk verloren...");
             isOfflineMode = true; 
-            
             if(document.getElementById('controls').style.display === 'flex') {
-                const statusText = document.getElementById('player-status');
-                statusText.innerText = "⚠️ Geen internet. Wachten...";
-                
-                // Knoppen dof maken
+                document.getElementById('player-status').innerText = "⚠️ Geen internet. Wachten...";
                 const btn = document.getElementById('sdkPlayBtn');
                 btn.style.opacity = '0.5';
                 btn.style.pointerEvents = 'none';
             }
         });
 
+        // 3. Online detectie (Kabel erin)
         window.addEventListener('online', () => {
             log("Netwerk terug!");
             isOfflineMode = false;
-
-            // Knoppen weer actief
             const btn = document.getElementById('sdkPlayBtn');
             btn.style.opacity = '1';
             btn.style.pointerEvents = 'auto';
@@ -142,7 +151,7 @@
             if(hasGameStarted && spotifyPlayer) {
                 document.getElementById('player-status').innerText = "Verbinding OK";
                 
-                // Check of we UI moeten updaten
+                // Slimme check: speelt hij nog?
                 spotifyPlayer.getCurrentState().then(state => {
                     if (!state) {
                          recoverConnection();
@@ -157,7 +166,6 @@
             }
         });
 
-        // Hulpfunctie om knop te updaten zonder logica
         function updateUIState(playing) {
             const btn = document.getElementById('sdkPlayBtn');
             const statusText = document.getElementById('player-status');
@@ -185,13 +193,10 @@
                     document.getElementById('loading-section').style.display = 'none';
 
                     if (hasGameStarted) {
-                        // Silent Recovery: We zaten al in het spel
                         if (currentSong && document.getElementById('controls').style.display === 'flex') {
                             document.getElementById('player-status').innerText = "Verbinding OK";
                             isRecovering = false; 
-                            
-                            // HIER IS DE FIX: true = blijf spelen (of ga spelen)!
-                            // Niet pauzeren (false)
+                            // True = Play (als het al speelde, blijft het spelen. Als het stil was, gaat het spelen)
                             transferPlayback(device_id, true); 
                         } else {
                             transferPlayback(device_id, false);
@@ -219,6 +224,8 @@
         function recoverConnection() {
             if(isRecovering) return;
             isRecovering = true;
+            // BELANGRIJK: Vernietig de ID zodat Play knop weet dat hij moet wachten
+            deviceId = null; 
             document.getElementById('player-status').innerText = "Speler opnieuw verbinden... 🔄";
             initSpotifyPlayer();
         }
@@ -235,7 +242,7 @@
         }
 
         async function transferPlayback(id, autoPlay) {
-            await fetch('https://api.spotify.com/v1/me/player', { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ "device_ids": [id], "play": autoPlay }) }); // play: autoPlay doorgeven
+            await fetch('https://api.spotify.com/v1/me/player', { method: 'PUT', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ "device_ids": [id], "play": autoPlay }) });
         }
 
         function startCamera() {
@@ -284,13 +291,14 @@
             const status = document.getElementById('player-status');
             
             if(!deviceId) { 
-                status.innerText = "Geen verbinding. Herstellen..."; 
+                status.innerText = "Herstellen... (even geduld)"; 
                 recoverConnection();
                 return; 
             }
             
             status.innerText = "Laden...";
 
+            // Timeout van 2 seconden
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 2000); 
 
