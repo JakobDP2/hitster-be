@@ -160,7 +160,7 @@
             // 1. Check of laden te lang duurt
             if (loadingStartTime > 0) {
                 const duration = Date.now() - loadingStartTime;
-                if (duration > 5000) { // 5 seconden limiet
+                if (duration > 7500) { // 7.5 seconden limiet
                     console.log("HEARTBEAT: Laden duurt te lang (" + duration + "ms). Trigger Fatal Error.");
                     triggerFatalError();
                 }
